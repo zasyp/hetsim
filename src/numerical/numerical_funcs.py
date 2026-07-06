@@ -39,6 +39,32 @@ def smoothing(
 
     return field
 
+def bilinear_gather(
+        field: np.ndarray,
+        r: np.ndarray[Any, np.dtype[np.float64]],
+        z: np.ndarray[Any, np.dtype[np.float64]],
+        pr: np.ndarray[Any, np.dtype[np.float64]],
+        pz: np.ndarray[Any, np.dtype[np.float64]],
+        ) -> np.ndarray[Any, np.dtype[np.float64]]:
+    """Vectorised bilinear interpolation of a node field with shape
+    (len(r), len(z)) at many points at once -- the grid-to-particle (gather)
+    counterpart of `bilinear_interp`. Points outside the grid are clamped to
+    its edges, matching the behaviour of `interpolation_weights`.
+    """
+    h_r = r[1] - r[0]
+    h_z = z[1] - z[0]
+    jr = np.clip(np.floor((pr - r[0]) / h_r).astype(int), 0, len(r) - 2)
+    iz = np.clip(np.floor((pz - z[0]) / h_z).astype(int), 0, len(z) - 2)
+    tr = np.clip((pr - r[jr]) / h_r, 0.0, 1.0)
+    tz = np.clip((pz - z[iz]) / h_z, 0.0, 1.0)
+    return (
+        (1.0 - tr) * (1.0 - tz) * field[jr, iz]
+        + (1.0 - tr) * tz * field[jr, iz + 1]
+        + tr * (1.0 - tz) * field[jr + 1, iz]
+        + tr * tz * field[jr + 1, iz + 1]
+    )
+
+
 def bilinear_interp(
         field: np.ndarray, r: np.ndarray, z: np.ndarray, r0: float, z0: float,
         ) -> float:
