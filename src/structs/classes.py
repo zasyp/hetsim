@@ -31,26 +31,34 @@ class Grid2D:
             )
 
 
-class Particle:
+class ParticleArray:
+    # structure-of-arrays: one object, six equal-length arrays,
+    # element k of every array describes particle k
+    _fields = ("z", "r", "v_z", "v_r", "v_theta", "weight")
+
     def __init__(
             self,
-            weight:float,
-            z:float,
-            r:float,
-            v_z:float,
-            v_r:float,
-            v_theta:float,
-            charge:int = 0,
-            active:bool = True,
+            z=None,
+            r=None,
+            v_z=None,
+            v_r=None,
+            v_theta=None,
+            weight=None,
     ) -> None:
-        self.weight = weight
-        self.z = z
-        self.r = r
-        self.v_z = v_z
-        self.v_r = v_r
-        self.v_theta = v_theta
-        self.charge = charge
-        self.active = active
+        for name, values in zip(self._fields, (z, r, v_z, v_r, v_theta, weight)):
+            arr = np.empty(0) if values is None else np.asarray(values, dtype=np.float64)
+            setattr(self, name, arr)
+
+    def __len__(self):
+        return self.z.size
+
+    def extend(self, other:"ParticleArray"):
+        for name in self._fields:
+            setattr(self, name, np.concatenate([getattr(self, name), getattr(other, name)]))
+
+    def keep(self, mask:np.ndarray):
+        for name in self._fields:
+            setattr(self, name, getattr(self, name)[mask])
 
 
 class Thruster:

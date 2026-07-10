@@ -1,26 +1,18 @@
-from ..structs.classes import Particle, Grid2D
+from ..structs.classes import ParticleArray, Grid2D
 
 import numpy as np
 
 
-def particles_to_arrays(particles: list[Particle]):
-    z = np.array([p.z for p in particles])
-    r = np.array([p.r for p in particles])
-    w = np.array([p.weight for p in particles])
-    return z, r, w
-
-
 def locate_particle(
-        z: np.ndarray,
-        r: np.ndarray,
+        part: ParticleArray,
         grid: Grid2D
         ):
 
     dr = (grid.max_r - grid.min_r) / (grid.N_r - 1)
     dz = (grid.max_z - grid.min_z) / (grid.N_z - 1)
 
-    zeta = (z - grid.min_z) / dz
-    rho = (r - grid.min_r) / dr
+    zeta = (part.z - grid.min_z) / dz
+    rho = (part.r - grid.min_r) / dr
 
     left_z_node = np.clip(zeta.astype(np.int64), 0, grid.N_z - 2)
     lower_r_node = np.clip(rho.astype(np.int64), 0, grid.N_r - 2)
@@ -32,16 +24,16 @@ def locate_particle(
 
 
 def scatter(
+    part: ParticleArray,
+    grid: Grid2D,
     left_z_node: np.ndarray,
     lower_r_node: np.ndarray,
-    w: np.ndarray,
-    grid: Grid2D,
     lt_right: np.ndarray,
     lt_upper: np.ndarray,
     q: np.ndarray | None = None
     ):
 
-    values = w if q is None else w * q
+    values = part.weight if q is None else part.weight * q
     flat = left_z_node * grid.N_r + lower_r_node
     idx = np.concatenate([flat, flat + grid.N_r, flat + 1, flat + grid.N_r + 1])
     vals = np.concatenate([
