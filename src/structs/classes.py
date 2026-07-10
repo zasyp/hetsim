@@ -3,12 +3,12 @@ import numpy as np
 class Grid2D:
     def __init__(
         self,
-        max_z:np.float64,
-        max_r:np.float64,
+        max_z:float,
+        max_r:float,
         N_r:int,
         N_z:int,
-        min_z:np.float64 = np.float64(0.0),
-        min_r:np.float64 = np.float64(0.0),
+        min_z:float = 0.0,
+        min_r:float = 0.0,
     ):
         self.max_z = max_z
         self.max_r = max_r
@@ -26,20 +26,21 @@ class Grid2D:
     def create_mesh(self):
         return np.meshgrid(
             np.linspace(self.min_r, self.max_r, self.N_r),
-            np.linspace(self.min_z, self.max_z, self.N_z)
+            np.linspace(self.min_z, self.max_z, self.N_z),
+            indexing='ij'
             )
 
 
 class Particle:
     def __init__(
             self,
-            weight:np.float64,
-            z:np.float64,
-            r:np.float64,
-            v_z:np.float64,
-            v_r:np.float64,
-            v_theta:np.float64,
-            charge:bool = False,
+            weight:float,
+            z:float,
+            r:float,
+            v_z:float,
+            v_r:float,
+            v_theta:float,
+            charge:int = 0,
             active:bool = True,
     ) -> None:
         self.weight = weight
@@ -72,4 +73,3 @@ class Thruster:
         self.voltage = voltage
         self.mass = mass
         self.temperature_anode = temperature_anode
-        pass
