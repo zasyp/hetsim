@@ -15,13 +15,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-from src.structs.classes import Grid2D, Thruster
+from src.examples.common import spt70
 from src.magnetics.spt70_system import (
     solve_spt70_field, field_on_grid, iron_mask, _box_mask,
     IRON_PIECES, INNER_COIL, OUTER_COIL,
     CHANNEL_R_IN, CHANNEL_R_OUT, CHANNEL_Z0, CHANNEL_Z_EXIT,
 )
-import scipy.constants as cst
 
 
 def draw_hardware(ax):
@@ -47,12 +46,7 @@ def draw_hardware(ax):
 
 
 def main():
-    thruster = Thruster(
-        r_min=0.0175, r_max=0.035, channel_length=0.03,
-        mdot=2.5e-6, B_r_max=0.015, voltage=300,
-        mass=131.293 * cst.atomic_mass, temperature_anode=750.0,
-    )
-    grid = Grid2D(max_z=0.06, max_r=0.05, N_r=101, N_z=121)
+    thruster, grid = spt70()
 
     # hardware-frame solution for the map
     r, z, psi, Br, Bz = solve_spt70_field(thruster.B_r_max)

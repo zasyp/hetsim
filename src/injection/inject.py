@@ -1,6 +1,5 @@
 import numpy as np
 from math import floor
-import scipy.constants as cst
 from ..structs.classes import ParticleArray, Thruster
 from ..neutrals.neutrals import free_flight
 
@@ -18,7 +17,7 @@ def inject_on_grid(
     if np.random.rand() < N_frac - N_inj:
         N_inj += 1
 
-    v_thermal = np.sqrt(thruster.temperature_anode * cst.Boltzmann / thruster.mass)
+    v_thermal = thruster.propellant.thermal_speed(thruster.temperature_anode)
 
     r = np.sqrt(r1 ** 2 + np.random.rand(N_inj) * (r2 ** 2 - r1 ** 2))
     z = np.zeros(N_inj)

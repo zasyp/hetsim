@@ -3,6 +3,7 @@
 # interpolators. Used by WorkingSubstance to load ionization-rate data,
 # but written generically so any (x, y1, y2, ...) table can reuse it.
 
+import re
 from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
@@ -89,3 +90,58 @@ def load_xy_table(filepath:str, ncols:int, comments:str = "#", kind:str = "cubic
         for col in range(1, ncols)
     )
     return data, interpolators
+
+
+_THRESHOLD_RE = re.compile(r"energy \(eV\):\s*([0-9.eE+-]+)")
+
+
+def load_hallthruster_table(filepath:str, kind:str = "linear"):
+    """Read a two-column rate-coefficient table in the HallThruster.jl
+    reactions format (github.com/UM-PEPL/HallThruster.jl):
+
+        Ionization energy (eV): 12.13      <- threshold, only for
+        Energy (eV)  Rate coefficient ...     ionization/excitation
+        0.0  0.0
+        1.0  2.4e-18
+        ...
+
+    i.e. an optional "<...> energy (eV): <value>" line, a column-header
+    line, then rows of (T_e [eV], k [m^3/s]) for a Maxwellian EEDF.
+
+    Returns (threshold, data, interpolator): threshold [eV] or None for
+    elastic tables, the (N, 2) data array sorted by T_e, and a clamped
+    interpolator k(T_e). Default interpolation is linear: ionization
+    rates span tens of decades near threshold, where a cubic through the
+    near-zero values oscillates and goes negative.
+    """
+    path = Path(filepath)
+    if not path.is_file():
+        raise FileNotFoundError(f"data file not found: {path}")
+
+    threshold = None
+    rows = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = _THRESHOLD_RE.search(line)
+        if m:
+            threshold = float(m.group(1))
+            continue
+        try:
+            values = [float(token) for token in line.split()]
+        except ValueError:
+            continue  # column-header line
+        if len(values) != 2:
+            raise ValueError(f"{path}: expected 2 columns, got {len(values)}: {line!r}")
+        rows.append(values)
+
+    if not rows:
+        raise ValueError(f"{path}: file contains no data rows")
+
+    data = sort_by_first_column(np.asarray(rows))
+    if not np.isfinite(data).all():
+        raise ValueError(f"{path}: contains NaN/inf values")
+
+    interp = clamped_interpolator(data[:, 0], data[:, 1], kind=kind)
+    return threshold, data, interp

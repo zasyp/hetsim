@@ -2,6 +2,7 @@
 # Checks: (1) steady-state outflow through the open boundaries == mdot,
 #         (2) mass flow through every channel cross-section == mdot,
 #         (3) density near the anode vs the kinetic estimate 4*mdot/(m*v_bar*S).
+# Also saves the time-averaged density map (neutral_density.png).
 # Run either way:
 #   python -m src.examples.neutral_flow        (from repo root)
 #   python src/examples/neutral_flow.py        (directly / VS Code Run)
@@ -12,30 +13,67 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 import numpy as np
-import scipy.constants as cst
+import matplotlib.pyplot as plt
 
-from src.structs.classes import Grid2D, Thruster, ParticleArray
+from src.examples.common import spt70
+from src.structs.classes import ParticleArray
 from src.injection.inject import inject_on_grid
 from src.deposition.deposit import locate_particle, scatter
 from src.neutrals.neutrals import node_volume, density, push_neutrals, apply_boundaries
 
 
-def main():
-    thruster = Thruster(
-        r_min=0.0175, r_max=0.035, channel_length=0.03,
-        mdot=2.5e-6, B_r_max=0.015, voltage=300,
-        mass=131.293 * cst.atomic_mass, temperature_anode=750.0,
+def plot_density(n_grid, thruster, grid, out="neutral_density.png"):
+    """2D density map + axial profile averaged over the channel annulus."""
+    z_nodes = grid.z_nodes()
+    r_nodes = grid.r_nodes()
+    z_mm = z_nodes * 1e3
+    r_mm = r_nodes * 1e3
+    L_mm = thruster.channel_length * 1e3
+
+    # mask the thruster body (z < L outside the channel annulus)
+    Z, R = np.meshgrid(z_nodes, r_nodes, indexing="ij")
+    body = (Z < thruster.channel_length) & (
+        (R < thruster.r_min) | (R > thruster.r_max)
     )
-    # domain: channel (30 mm) + plume region behind the exit (30 mm more,
-    # radially from the axis out to 50 mm); 0.5 mm cells
-    grid = Grid2D(max_z=0.06, max_r=0.05, N_r=101, N_z=121)
+    n_plot = np.where(body, np.nan, n_grid)
+
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(9, 8), sharex=True,
+        gridspec_kw={"height_ratios": [2, 1]},
+        layout="constrained",
+    )
+
+    pcm = ax1.pcolormesh(z_mm, r_mm, n_plot.T, cmap="viridis", shading="gouraud")
+    fig.colorbar(pcm, ax=[ax1, ax2], label="n, m$^{-3}$")
+    for r_wall in (thruster.r_min * 1e3, thruster.r_max * 1e3):
+        ax1.plot([0, L_mm], [r_wall, r_wall], "w-", lw=1.5)
+    ax1.axvline(L_mm, color="w", ls="--", lw=1)
+    ax1.set_ylabel("r, mm")
+    ax1.set_title("Neutral Xe density: SPT-70 channel + plume (no plasma)")
+
+    annulus = (r_nodes >= thruster.r_min) & (r_nodes <= thruster.r_max)
+    ax2.plot(z_mm, n_grid[:, annulus].mean(axis=1) * 1e-19)
+    ax2.axvline(L_mm, color="k", ls="--", lw=1, label="exit plane")
+    ax2.set_xlabel("z, mm")
+    ax2.set_ylabel("n, 10$^{19}$ m$^{-3}$")
+    ax2.set_title("profile averaged over the channel annulus")
+    ax2.grid(alpha=0.3)
+    ax2.legend()
+
+    fig.savefig(out, dpi=150)
+    print(f"saved {out}")
+
+
+def main():
+    thruster, grid = spt70()
+    gas = thruster.propellant
 
     dt = 5e-7
     n_steps = 4000
     weight = 2e10
     sample_from = 3 * n_steps // 4  # average over the last quarter
 
-    v_th = np.sqrt(thruster.temperature_anode * cst.Boltzmann / thruster.mass)
+    v_th = gas.thermal_speed(thruster.temperature_anode)
     V = node_volume(grid)
     dz = (grid.max_z - grid.min_z) / (grid.N_z - 1)
 
@@ -67,7 +105,7 @@ def main():
             print(f"step {step+1:5d}: {len(part):7d} particles")
 
     # --- checks ---
-    m = thruster.mass
+    m = gas.mass
     t_sampled = n_samples * dt
 
     # 1) total outflow through the open plume boundaries
@@ -89,11 +127,13 @@ def main():
     annulus = (r_nodes >= thruster.r_min) & (r_nodes <= thruster.r_max)
     n_grid = density(S0_acc / n_samples, V)
     n_anode = n_grid[0:3, annulus].mean()
-    v_bar = np.sqrt(8 * cst.Boltzmann * thruster.temperature_anode / (np.pi * m))
-    S_exit = np.pi * (thruster.r_max**2 - thruster.r_min**2)
+    v_bar = gas.mean_speed(thruster.temperature_anode)
+    S_exit = thruster.exit_area()
     n_est = 4 * thruster.mdot / (m * v_bar * S_exit)
     print(f"anode density: {n_anode:.3e} m^-3, estimate {n_est:.3e} m^-3,"
           f"  ratio {n_anode/n_est:.2f}")
+
+    plot_density(n_grid, thruster, grid)
 
 
 if __name__ == "__main__":
