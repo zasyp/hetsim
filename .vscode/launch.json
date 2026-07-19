@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Run module (fixes relative imports)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "${input:pyModule}",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "pyModule",
+            "type": "promptString",
+            "description": "Dotted module path to run, e.g. src.electron_liquid.collisions",
+            "default": "src.electron_liquid.collisions"
+        }
+    ]
+}

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(git status *)",
+      "Bash(.venv/Scripts/python.exe -m src.electron_liquid.collisions)",
+      "Bash(mkdir -p c:/Users/zasyp/hetsim/.vscode)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\zasyp\\hetsim"
+    ]
+  }
+}
