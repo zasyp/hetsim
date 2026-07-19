@@ -122,3 +122,17 @@ def field_on_grid(grid: Grid2D, B_target: float):
     Bz_g = RegularGridInterpolator((r, z), Bz)(points).reshape(shape)
     lam_g = RegularGridInterpolator((r, z), lam)(points).reshape(shape)
     return Br_g, Bz_g, lam_g
+
+
+def mid_channel_B(grid: Grid2D, thruster) -> np.ndarray:
+    """|B|(z) along the mid-channel radius (average of r_min/r_max), on
+    the grid's z-nodes (anode at z=0) -- the field profile the 1-D axial
+    electron model (collisions.py / mobility.py) lives on. Shared by any
+    example that needs B(z) instead of the full 2-D map, so the
+    mid-channel-row extraction logic (and its choice of radius) only
+    lives in one place.
+    """
+    Br_g, Bz_g, _ = field_on_grid(grid, thruster.B_r_max)
+    r_nodes = grid.r_nodes()
+    j_mid = np.argmin(np.abs(r_nodes - (thruster.r_min + thruster.r_max) / 2))
+    return np.hypot(Br_g[:, j_mid], Bz_g[:, j_mid])
