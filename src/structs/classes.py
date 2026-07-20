@@ -235,6 +235,11 @@ class Thruster:
     voltage:int
     propellant:WorkingSubstance
     temperature_anode:float
+    # axial position [m] of the "cathode plane": the field line passing
+    # through (z_cathode, r_mid) is the cathode-side boundary of the
+    # electron-fluid lambda layers. A model knob, not hardware geometry;
+    # keep it downstream of the anomalous-transport barrier (~1.14 L).
+    z_cathode:float = 0.045
 
     @property
     def mass(self) -> float:
