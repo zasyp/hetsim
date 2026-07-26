@@ -1,0 +1,21 @@
+# Alumina (Al2O3) -- Hall thruster channel wall.
+#
+# Secondary-electron-emission (SEE) yield, Maxwellian-averaged over the
+# incident electron energy distribution:
+#
+#     gamma(Te) = gamma_2plusb * a * Te^b        (Te in eV)
+#
+# a, b are the coefficients of the mono-energetic power-law fit
+# delta(E) = a * E^b; gamma_2plusb = Gamma(2 + b) is the gamma-function
+# factor that appears when that yield is averaged over a Maxwellian EEDF.
+#
+# Coefficients from Goebel & Katz, "Fundamentals of Electric Propulsion"
+# (Wiley/JPL, 2008), Ch. 7, Table 7-1 and Eq. 7.3-30.
+# Underlying mono-energetic Al2O3 measurements: N. Gascon, M. Dudeck &
+# S. Barral, "Wall material effects in stationary plasma thrusters. I,"
+# Phys. Plasmas 10, 4123 (2003).
+#
+# key            value
+a                0.145
+b                0.650
+gamma_2plusb     1.49

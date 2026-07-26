@@ -117,6 +117,14 @@ class WorkingSubstance:
         """S_iz = n_e * N * k_iz(E/N): ionization events per m^3 per s."""
         return n_e * N * self.ionization_rate_coefficient(E_N)
 
+    def volumetric_ionization_rate_Te(self, n_e:np.ndarray, N:np.ndarray, Te:np.ndarray) -> np.ndarray:
+        """S_iz = n_e * N * k_iz(T_e): ionization events per m^3 per s for a
+        Maxwellian EEDF at T_e [eV] — the fluid-electron counterpart of
+        volumetric_ionization_rate (which is E/N-based). This is the source
+        term consumed by the ionization operator (electron_liquid.ionization).
+        """
+        return n_e * N * self.ionization_rate_Te(Te)
+
     def load_lxcat_maxwellian_table(self, filepath:str) -> None:
         """Load a three-column table of rate coefficients vs mean electron
         energy for a Maxwellian EEDF (LXCat/BOLSIG+ "rate coefficient vs
@@ -226,6 +234,24 @@ class WorkingSubstance:
 
 
 @dataclass
+class WallMaterial:
+    """Channel wall material, holding its secondary-electron-emission
+    (SEE) yield fit. The Maxwellian-averaged yield is
+
+        gamma(Te) = gamma_2plusb * a * Te^b        (Te in eV)
+
+    with a, b the mono-energetic power-law coefficients and gamma_2plusb
+    = Gamma(2 + b) the averaging factor (Goebel & Katz, Fundamentals of
+    Electric Propulsion, Table 7-1 / Eq. 7.3-30). Load ready-made
+    materials from wall_materials.py.
+    """
+    name:str
+    a:float                                             # mono-energetic fit: delta = a * E^b
+    b:float
+    gamma_2plusb:float                                  # Gamma(2 + b), Maxwellian averaging factor
+
+
+@dataclass
 class Thruster:
     r_min:float
     r_max:float
@@ -235,6 +261,10 @@ class Thruster:
     voltage:int
     propellant:WorkingSubstance
     temperature_anode:float
+    # channel wall material, source of the near-wall SEE yield used by the
+    # sheath model (block 5). Defaults to None so gas-only setups still
+    # build; the sheath model requires it set (see wall_materials.py).
+    wall_material:WallMaterial | None = None
     # axial position [m] of the "cathode plane": the field line passing
     # through (z_cathode, r_mid) is the cathode-side boundary of the
     # electron-fluid lambda layers. A model knob, not hardware geometry;

@@ -1,0 +1,21 @@
+# Boron nitride (BN) -- Hall thruster channel wall.
+#
+# Secondary-electron-emission (SEE) yield, Maxwellian-averaged over the
+# incident electron energy distribution:
+#
+#     gamma(Te) = gamma_2plusb * a * Te^b        (Te in eV)
+#
+# a, b are the coefficients of the mono-energetic power-law fit
+# delta(E) = a * E^b; gamma_2plusb = Gamma(2 + b) is the gamma-function
+# factor that appears when that yield is averaged over a Maxwellian EEDF.
+#
+# Coefficients from Goebel & Katz, "Fundamentals of Electric Propulsion"
+# (Wiley/JPL, 2008), Ch. 7, Table 7-1 and Eq. 7.3-30.
+# Underlying mono-energetic BN measurements: J.-P. Bugeat & C. Koppel,
+# "Development of a second generation of SPT," IEPC-1995-035 (24th Intl.
+# Electric Propulsion Conf., Moscow, 1995).
+#
+# key            value
+a                0.150
+b                0.549
+gamma_2plusb     1.38

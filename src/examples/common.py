@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 from src.structs.classes import Grid2D, Thruster
 from src.structs.propellants import xenon
+from src.structs.wall_materials import bn_sio2
 
 
 def spt70() -> tuple[Thruster, Grid2D]:
@@ -23,7 +24,7 @@ def spt70() -> tuple[Thruster, Grid2D]:
         r_min=0.0175, r_max=0.035, channel_length=0.03,
         mdot=2.5e-6, B_r_max=0.015, voltage=300,
         propellant=xenon(), temperature_anode=750.0,
-        z_cathode=0.045,
+        wall_material=bn_sio2(), z_cathode=0.045,
     )
     grid = Grid2D(max_z=0.06, max_r=0.05, N_r=101, N_z=121)
     return thruster, grid
