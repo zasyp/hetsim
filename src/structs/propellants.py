@@ -1,6 +1,6 @@
 # Ready-made propellant gases: WorkingSubstance factories wired to the
-# HallThruster.jl reaction tables copied into <repo>/reactions
-# (see reactions/explanation.md for provenance).
+# HallThruster.jl reaction tables copied into <repo>/materials/reactions
+# (see materials/reactions/explanation.md for provenance).
 #
 # Each factory loads single ionization (ground -> +1) only; the
 # multi-charge tables (e.g. ionization_Xe_Xe2+.dat) sit unused until the
@@ -16,7 +16,7 @@ import scipy.constants as cst
 
 from .classes import WorkingSubstance
 
-REACTIONS_DIR = Path(__file__).resolve().parents[2] / "reactions"
+REACTIONS_DIR = Path(__file__).resolve().parents[2] / "materials" / "reactions"
 
 
 def _build(
@@ -45,10 +45,10 @@ def krypton() -> WorkingSubstance:
 
 
 def argon() -> WorkingSubstance:
-    # ionization data only: no elastic/excitation tables in reactions/
+    # ionization data only: no elastic/excitation tables in materials/reactions/
     return _build("Ar", 39.948, elastic=False, excitation=False)
 
 
 def nitrogen() -> WorkingSubstance:
-    # no excitation table in reactions/
+    # no excitation table in materials/reactions/
     return _build("N2", 2 * 14.0067, excitation=False)
