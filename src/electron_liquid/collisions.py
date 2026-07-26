@@ -180,6 +180,50 @@ def anomaly_collision(B:np.ndarray, alpha:float | np.ndarray = 1 / 16) -> np.nda
     return alpha * omega_ce(B)
 
 
+def anomaly_collision_brick(electron_concentration:np.ndarray,
+                            Te:np.ndarray,
+                            c:float = 640.0,
+                            ) -> np.ndarray:
+    """Alternative anomalous frequency following the electron-ion scaling
+    (Brick, Roberts & Jorns, "Numerical Investigation of Electron Energy
+    Transport in Hall Thrusters", AIAA SciTech 2025-0298 -- Eq. 8, p.7):
+
+        nu_anom = c * nu_ei = 2.9e-12 * c * n_e * lnL * Te^(-3/2)
+
+    i.e. the classical electron-ion frequency (coulomb_collision) scaled by
+    a single scalar c. This is a deliberate alternative to the Bohm-like
+    anomaly_collision(): instead of imposing the transport barrier through a
+    hand-tuned axial profile alpha(z), the minimum arises self-consistently
+    from the Te^(-3/2) dependence -- nu_anom bottoms out where Te peaks (near
+    peak B), which is what carves the steep electric field. Only the overall
+    magnitude is tuned; the paper's fitted values are O(100-1000) per
+    operating condition (Kr 300V/15A c=1000, Xe 300V/15A c=640, Kr 300V/30A
+    c=250, Xe 600V/15A c=500; Brick 2025 Figs. 8-9). Because it depends on
+    local n_e, Te rather than z, feed it plasma fields, not a grid position.
+
+    Note: the paper's fully self-consistent update also applies a relaxation
+    factor (Eq. 16, r=0.5) for numerical stability -- see relax_collision().
+    """
+    return c * coulomb_collision(electron_concentration, Te)
+
+
+def relax_collision(nu_new:np.ndarray,
+                    nu_old:np.ndarray,
+                    r:float = 0.5,
+                    ) -> np.ndarray:
+    """Under-relaxed update of a self-consistent anomalous frequency (Brick
+    2025, Eq. 16):
+
+        nu = r * nu_new + (1 - r) * nu_old
+
+    nu_new is anomaly_collision_brick() evaluated on the current-timestep
+    fields, nu_old the previous accepted value. Damps the large transients
+    that make an unrelaxed self-consistent closure go unstable; the paper
+    uses r=0.5 as the largest value that stayed reliably stable.
+    """
+    return r * nu_new + (1 - r) * nu_old
+
+
 def electron_collision(nu_en:np.ndarray,
                        nu_iz:np.ndarray,
                        nu_ei:np.ndarray,
