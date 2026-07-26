@@ -93,7 +93,7 @@ def solve_spt70_field(B_target: float, nr: int = 121, nz: int = 221):
     """
     r, z, mu_r, current_density = build_spt70_system(nr, nz)
     psi = solve_axisymmetric_flux(r, z, mu_r, current_density)
-    Br, Bz = field_from_flux(psi, r, z)
+    Br, Bz = field_from_flux(psi, r, z, iron=mu_r > 1.0)
 
     r_ref, z_ref = REFERENCE_POINT
     interp_Br = RegularGridInterpolator((r, z), Br)
@@ -104,13 +104,22 @@ def solve_spt70_field(B_target: float, nr: int = 121, nz: int = 221):
     return r, z, psi * scale, Br * scale, Bz * scale
 
 
-def field_on_grid(grid: Grid2D, B_target: float):
+def field_on_grid(grid: Grid2D, B_target: float, method: str = "fem"):
     """Magnetic field and streamfunction on the discharge grid.
 
     Solves the magnetic system in the hardware frame, then interpolates
     onto the Grid2D nodes (anode at z = 0). Returns (Br, Bz, lam), each
     of shape (N_z, N_r) — the project's field layout, ready for gather().
+
+    method : "fem" (default) uses the nodal-P1 finite-element solver with
+    AMR at the pole tips (fem.field_on_grid_fem) — conformal, no interface
+    leak, corner singularity resolved. "fd" keeps the legacy finite-
+    difference solver with one-sided interface gradients as a fallback.
     """
+    if method == "fem":
+        from .fem import field_on_grid_fem
+        return field_on_grid_fem(grid, B_target)
+
     r, z, psi, Br, Bz = solve_spt70_field(B_target)
     lam = magnetic_streamfunction(Br, Bz, r, z)
 

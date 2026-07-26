@@ -90,19 +90,65 @@ def solve_axisymmetric_flux(
     return psi
 
 
+def _interface_gradient(
+        psi: np.ndarray,
+        coord: np.ndarray,
+        axis: int,
+        iron: np.ndarray,
+        ) -> np.ndarray:
+    """d(psi)/d(coord) along `axis`, one-sided at the iron interface.
+
+    psi is continuous, but B = grad(psi)/r jumps across the mu-discontinuity
+    (H_t continuous => B_t jumps by mu_r), so psi has a KINK at the iron
+    surface. A centered difference there is not O(h^2) but O(1) wrong: the
+    stencil straddling the kink returns ~the average of the steep in-iron
+    slope and the gentle vacuum slope, leaking the huge in-iron field into
+    the first vacuum node (the bright ring at the pole faces).
+
+    Fix: at a vacuum node whose centered stencil would reach into iron, take
+    a one-sided difference using only the vacuum-side neighbour (first order,
+    but consistent). Iron nodes keep the centered value — they are masked out
+    of the vacuum solution downstream and never feed the discharge grid.
+    """
+    h = coord[1] - coord[0]
+    centered = np.gradient(psi, coord, axis=axis)
+    fwd = (np.roll(psi, -1, axis) - psi) / h       # (psi[k+1]-psi[k])/h
+    bwd = (psi - np.roll(psi, 1, axis)) / h        # (psi[k]-psi[k-1])/h
+    hi_iron = np.roll(iron, -1, axis)              # neighbour k+1 is iron
+    lo_iron = np.roll(iron, 1, axis)               # neighbour k-1 is iron
+    vac = ~iron
+    use_bwd = vac & hi_iron & ~lo_iron             # iron above -> lean k-1
+    use_fwd = vac & lo_iron & ~hi_iron             # iron below -> lean k+1
+    out = np.where(use_bwd, bwd, centered)
+    out = np.where(use_fwd, fwd, out)
+    return out
+
+
 def field_from_flux(
         psi: np.ndarray,
         r: np.ndarray,
         z: np.ndarray,
+        iron: np.ndarray | None = None,
         ) -> tuple[np.ndarray, np.ndarray]:
     """Magnetic field from the flux function psi = r*A_phi:
     B_r = -(1/r) dpsi/dz, B_z = (1/r) dpsi/dr.
 
     On the axis (r = 0) B_r = 0 by symmetry and B_z is recovered from the
     near-axis behaviour psi ~ (1/2) B_z r^2, i.e. B_z(0) = 2*psi(dr)/dr^2.
+
+    `iron` : optional boolean (nr, nz) mask of the permeable material. When
+    given, gradients are taken one-sided at the vacuum/iron interface so the
+    recovered field does not leak the in-iron field into the adjacent vacuum
+    node (see _interface_gradient). Pass mu_r > 1. The true corner
+    singularity at a sharp pole tip remains — that is physics, not this
+    artifact, and needs mesh refinement / corner rounding to control.
     """
-    dpsi_dr = np.gradient(psi, r, axis=0)
-    dpsi_dz = np.gradient(psi, z, axis=1)
+    if iron is None:
+        dpsi_dr = np.gradient(psi, r, axis=0)
+        dpsi_dz = np.gradient(psi, z, axis=1)
+    else:
+        dpsi_dr = _interface_gradient(psi, r, 0, iron)
+        dpsi_dz = _interface_gradient(psi, z, 1, iron)
 
     r_safe = np.where(r == 0.0, 1.0, r)[:, None]
     Br = -dpsi_dz / r_safe
