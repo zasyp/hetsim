@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.linalg import solve_banded
 
 
 def read_table(filepath:str, ncols:int = None, comments:str = "#") -> np.ndarray:
@@ -145,3 +146,19 @@ def load_hallthruster_table(filepath:str, kind:str = "linear"):
 
     interp = clamped_interpolator(data[:, 0], data[:, 1], kind=kind)
     return threshold, data, interp
+
+
+def thomas_alg(lower, diagonal, upper, rhs):
+    """Solve a tridiagonal system A x = rhs for x.
+
+    lower/diagonal/upper are the three diagonals of A, each length N and
+    aligned by row (lower[0] and upper[-1] are unused). Packs them into
+    the banded layout scipy expects and defers to solve_banded, which is
+    the LAPACK Thomas sweep.
+    """
+    N = len(diagonal)
+    ab = np.zeros((3, N))
+    ab[0, 1:] = upper[:-1]      # super-diagonal
+    ab[1, :] = diagonal         # main diagonal
+    ab[2, :-1] = lower[1:]      # sub-diagonal
+    return solve_banded((1, 1), ab, rhs)
