@@ -41,3 +41,29 @@ def perp_diffusion(mu_perp:np.ndarray, Te:np.ndarray) -> np.ndarray:
     """Einstein relation D_perp = mu_perp * Te [m^2/s]. With Te in eV
     (numerically k_B T / e in volts) the product needs no conversion."""
     return mu_perp * Te
+
+
+def perp_thermal_conductivity(ne:np.ndarray,
+                              Te:np.ndarray,
+                              mu_perp:np.ndarray,
+                              coeff:float = 2.5,
+                              ) -> np.ndarray:
+    """Cross-field electron thermal conductivity kappa_perp [A/m], the
+    thermal counterpart of perp_mobility/perp_diffusion, defined so that
+    the electron heat flux is
+
+        q_e = -kappa_perp * grad(Te)        [W/m^2]   (Te in eV = volts)
+
+    with the Einstein-style closure
+
+        kappa_perp = coeff * e * n_e * Te * mu_perp .
+
+    Because it inherits mu_perp = mu_0 / (1 + Omega^2), the conduction is
+    quenched across the strong-field region exactly like the particle
+    mobility, so heat (like current) crosses B only where collisions or
+    anomalous transport allow it. coeff is the O(1) Braginskii-type number
+    (~2.5 for a Maxwellian; tune against data). Units work out to amps per
+    metre so that kappa_perp * grad(Te)[V/m] is W/m^2 and the layer
+    machinery (layer_conductance) yields a thermal conductance in W/V.
+    """
+    return coeff * const.elementary_charge * ne * Te * mu_perp
