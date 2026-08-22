@@ -130,31 +130,31 @@ def recover_B_elements(points, tris, psi):
 
 
 def recover_B_nodal(points, tris, psi, mu_r_tri):
-    """Area-weighted nodal field, averaged only within one material.
+    """Volume-weighted nodal field, averaged only within one material.
 
     A poor man's Zienkiewicz-Zhu recovery: smooth the per-element field to
     the nodes, but keep separate averages per material class so the field
     stays two-valued across the iron surface (no smearing of the interface).
+    Weighted by element volume (area * r_centroid, dV = 2*pi*r dr dz), not
+    plain area — near the axis r varies a lot across an element, and an
+    area-only average would bias the mean since B itself scales like 1/r.
     Returns (Br_vac, Bz_vac) — the vacuum-side nodal field, which is what the
     plasma domain and the discharge-grid interpolation need. Iron-only nodes
     stay NaN.
     """
     Br_e, Bz_e = recover_B_elements(points, tris, psi)
-    area, _, _ = _p1_geometry(points, tris)
+    area, _, r_c = _p1_geometry(points, tris)
     vac = mu_r_tri <= 1.0                      # vacuum elements
+    w = (area * r_c)[vac]
+    idx = tris[vac].ravel()
 
     N = len(points)
     wsum = np.zeros(N)
     Br_n = np.zeros(N)
     Bz_n = np.zeros(N)
-    for t in range(len(tris)):
-        if not vac[t]:
-            continue
-        w = area[t]
-        for n in tris[t]:
-            wsum[n] += w
-            Br_n[n] += w * Br_e[t]
-            Bz_n[n] += w * Bz_e[t]
+    np.add.at(wsum, idx, np.repeat(w, 3))
+    np.add.at(Br_n, idx, np.repeat(w * Br_e[vac], 3))
+    np.add.at(Bz_n, idx, np.repeat(w * Bz_e[vac], 3))
     good = wsum > 0
     Br_n[good] /= wsum[good]
     Bz_n[good] /= wsum[good]
