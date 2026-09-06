@@ -3,19 +3,19 @@
 # Right: the radial field profile B_r(z) along mid-channel — the curve
 # the electron model will live on (peak at the exit plane).
 # Run either way:
-#   python -m src.examples.magnetic_field        (from repo root)
+#   python -m legacy.magnetic_field        (from repo root)
 #   python src/examples/magnetic_field.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.magnetics.spt70_system import (
     solve_spt70_field, field_on_grid, iron_mask, _box_mask,
     IRON_PIECES, INNER_COIL, OUTER_COIL,

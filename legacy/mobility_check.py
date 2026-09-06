@@ -9,13 +9,13 @@
 # block-2 formulas at two hand-picked points.
 #
 # Run either way:
-#   python -m src.examples.mobility_check        (from repo root)
+#   python -m legacy.mobility_check        (from repo root)
 #   python src/examples/mobility_check.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 from src.electron_liquid.default_plasm_params import omega_ce
 from src.electron_liquid.mobility import zeroB_mobility, hall_parameter, perp_mobility, perp_diffusion

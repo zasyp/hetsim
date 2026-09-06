@@ -15,18 +15,18 @@
 # moves upstream (toward the anode) as facility pressure rises.
 #
 # Run either way:
-#   python -m src.examples.anomalous_transport        (from repo root)
+#   python -m legacy.anomalous_transport        (from repo root)
 #   python src/examples/anomalous_transport.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.magnetics.spt70_system import mid_channel_B
 from src.electron_liquid.default_plasm_params import omega_ce
 from src.electron_liquid.collisions import (

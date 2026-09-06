@@ -439,7 +439,7 @@ for _pass in range(amr_passes + 1):
 
 ## 7. Что получилось численно
 
-`python -m src.examples.fem_check`:
+`python -m legacy.fem_check`:
 
 ```
 1) mid-channel |Br| peak: FD 104 G, FEM 104 G  (diff 0.1%)
@@ -728,7 +728,7 @@ for it in range(s.max_iter):
 
 ## 14. Что получилось
 
-`python -m src.examples.solve_spt70`:
+`python -m legacy.solve_spt70`:
 
 ```
 converged=True in 38 iters (residual 9.1e-04 eV)
@@ -736,7 +736,7 @@ peak Te = 28.3 eV  (~0.09 V_d)
 power budget [W]: ohmic in=481  wall=32  ioniz=29  rad=11
 ```
 
-`python -m src.examples.voltage_sweep`:
+`python -m legacy.voltage_sweep`:
 
 ```
 V_d = 200 V  ->  Te_peak = 18.9 eV  (0.095 V_d)
@@ -846,8 +846,10 @@ def relax_collision(nu_new, nu_old, r=0.5):
 строится один раз на магнитное поле и переиспользуется каждую итерацию, вместо
 того чтобы таскать `idx`/`edges`/`centers`/`dV` руками через полдюжины вызовов.
 
-**`examples/field_maps.py`** — дамп всех 2D-полей по одной картинке на поле в
-`maps/`. Одномерных срезов по средней линии перестало хватать.
+**`src/viz/fields.py`** — дамп всех 2D-полей по одной картинке на поле.
+Одномерных срезов по средней линии перестало хватать. Рисование живёт в пакете,
+потому что им пользуется основной пример; старая точка входа, которая считала
+поля на `PlasmaState.placeholder`, осталась как `legacy/field_maps.py`.
 
 ---
 

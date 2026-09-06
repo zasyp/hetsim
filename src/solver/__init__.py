@@ -10,10 +10,13 @@
 from .state import PlasmaState
 from .geometry import LayerGeometry
 from .electron_fluid import FluidElectronSolver, SolverSettings
+from .hybrid import HybridSolver, HybridSettings
 
 __all__ = [
     "PlasmaState",
     "LayerGeometry",
     "FluidElectronSolver",
     "SolverSettings",
+    "HybridSolver",
+    "HybridSettings",
 ]

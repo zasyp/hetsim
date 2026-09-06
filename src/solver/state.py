@@ -2,17 +2,33 @@
 # writes. Holds the fixed inputs (magnetic field + heavy-species densities)
 # and, after a solve, the electron results (Te, potential, E-field).
 #
-# Until the PIC ion / ion-continuity side is wired in, n_e and n_n are
-# supplied externally; `placeholder` builds physically-scaled stand-in
-# profiles so the electron solver can be exercised end-to-end today. Swap
-# `placeholder` for real deposited densities once ions are pushed.
+# Two ways to fill the densities:
+#
+#   placeholder      prescribed 1-D profiles broadcast over r. Not a solution
+#                    — a stand-in that lets the electron solver be exercised
+#                    on its own. Read the SHAPE of anything it produces, never
+#                    the magnitude.
+#   from_particles   n_e and n_n deposited from the ion and neutral
+#                    macroparticles, with n_e = n_i by quasineutrality. This
+#                    is the self-consistent path; the hybrid loop calls
+#                    update_densities on every electron update.
 
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..structs.classes import Grid2D, Thruster, WorkingSubstance
+from ..structs.classes import Grid2D, Thruster, WorkingSubstance, ParticleArray
 from ..magnetics.spt70_system import field_on_grid
+from ..ions.moments import number_density, smooth
+
+# Floors on the deposited densities. Not cosmetic: the cross-field conductance
+# that the potential solve inverts is proportional to n_e, so an empty cell
+# would make the layer conductance singular; the collision frequencies divide
+# by n_n. The floors are far below any density the model resolves (n_e peaks
+# near 1e17, n_n near 1e20), so they only ever act in cells no particle has
+# reached yet.
+N_E_FLOOR = 1e15        # 1/m^3
+N_N_FLOOR = 1e15        # 1/m^3
 
 
 @dataclass
@@ -72,3 +88,48 @@ class PlasmaState:
             n_e=n_e[:, None] * ones_r,
             n_n=n_n[:, None] * ones_r,
         )
+
+    @classmethod
+    def from_particles(cls,
+                       grid: Grid2D,
+                       thruster: Thruster,
+                       gas: WorkingSubstance,
+                       ions: ParticleArray,
+                       neutrals: ParticleArray,
+                       smooth_passes: int = 2,
+                       dV: np.ndarray | None = None,
+                       ) -> "PlasmaState":
+        """Build a state whose densities come from the macroparticles.
+
+        n_e = n_i is quasineutrality, and it is an assumption, not a result:
+        the model never solves Poisson, so it cannot represent charge
+        separation. That is fine everywhere except inside the Debye sheath at
+        the walls — which is exactly why the sheath is handled analytically
+        (block 5) instead of being resolved.
+        """
+        Br, Bz, lam = field_on_grid(grid, thruster.B_r_max)
+        state = cls(grid=grid, thruster=thruster, gas=gas, Br=Br, Bz=Bz, lam=lam,
+                    n_e=np.full((grid.N_z, grid.N_r), N_E_FLOOR),
+                    n_n=np.full((grid.N_z, grid.N_r), N_N_FLOOR))
+        state.update_densities(ions, neutrals, smooth_passes=smooth_passes, dV=dV)
+        return state
+
+    def update_densities(self,
+                         ions: ParticleArray,
+                         neutrals: ParticleArray,
+                         smooth_passes: int = 2,
+                         dV: np.ndarray | None = None,
+                         ) -> None:
+        """Re-deposit n_e and n_n from the current particle populations.
+
+        Mutates in place on purpose. The hybrid loop keeps ONE state and one
+        FluidElectronSolver across the whole run: the solver holds the layer
+        geometry (built once from the magnetic field) and the previous Te as a
+        warm start, and it reads n_e / n_n off the state at every Gummel
+        iteration. Rebuilding either object each electron update would throw
+        away both and cost a hundred iterations instead of a handful.
+        """
+        n_i = smooth(number_density(ions, self.grid, dV), smooth_passes)
+        n_n = smooth(number_density(neutrals, self.grid, dV), smooth_passes)
+        self.n_e = np.maximum(n_i, N_E_FLOOR)
+        self.n_n = np.maximum(n_n, N_N_FLOOR)

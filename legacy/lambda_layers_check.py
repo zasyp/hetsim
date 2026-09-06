@@ -14,18 +14,18 @@
 # layers and sums to ~the analytic channel wall area.
 #
 # Run either way:
-#   python -m src.examples.lambda_layers_check        (from repo root)
+#   python -m legacy.lambda_layers_check        (from repo root)
 #   python src/examples/lambda_layers_check.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.magnetics.spt70_system import field_on_grid
 from src.neutrals.neutrals import node_volume
 from src.electron_liquid.lambda_layers import (

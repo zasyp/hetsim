@@ -27,13 +27,13 @@
 # B_ref, which is what we want: a global current rescale must not move them.
 #
 # Run:
-#   python -m src.examples.mesh_convergence
+#   python -m legacy.mesh_convergence
 
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 from scipy.constants import mu_0

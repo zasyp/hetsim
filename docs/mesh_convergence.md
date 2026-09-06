@@ -4,7 +4,7 @@
 что получилось, когда это проверили численно, и две вещи, которые всплыли
 попутно и оказались важнее самого ответа.
 
-Запуск: `python -m src.examples.mesh_convergence`
+Запуск: `python -m legacy.mesh_convergence`
 
 ---
 
@@ -172,9 +172,9 @@ these grid lines, no triangle straddles a material boundary». Это верно
   опорной точки на попадание в железо, `B` из `ψ` конечными разностями на
   сетке разряда).
 - `magnetics/spt70_system.py` — `material_edges()`, `check_conformal()`.
-- `examples/mesh_convergence.py` — сам sweep, метрики, графики
+- `legacy/mesh_convergence.py` — сам sweep, метрики, графики
   (`mesh_convergence.png`, `mesh_convergence_rates.png`).
-- `examples/amr_marked_positions.py` — куда именно AMR кладёт элементы.
+- `legacy/amr_marked_positions.py` — куда именно AMR кладёт элементы.
 
 ## Литература
 

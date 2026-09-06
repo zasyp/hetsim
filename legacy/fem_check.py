@@ -9,17 +9,17 @@
 #   3) the |B_r| max over the VACUUM nodes is lower for FEM (leak tamed).
 # Also saves fem_field.png: FD vs FEM B_r maps + the AMR mesh at a pole tip.
 # Run:
-#   python -m src.examples.fem_check
+#   python -m legacy.fem_check
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.magnetics.spt70_system import CHANNEL_Z0, field_on_grid, iron_mask
 from src.magnetics import fem
 

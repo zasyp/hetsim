@@ -10,18 +10,18 @@
 # electron_liquid.sheath_interaction / power_balance, assembled per layer.
 #
 # Run:
-#   python -m src.examples.power_budget
+#   python -m legacy.power_budget
 #   python src/examples/power_budget.py
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.structs.propellants import xenon
 from src.solver import PlasmaState, FluidElectronSolver
 from src.electron_liquid import sheath_interaction as sheath

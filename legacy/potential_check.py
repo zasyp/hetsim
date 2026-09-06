@@ -14,18 +14,18 @@
 # only their rough magnitude and z-shape matter.
 #
 # Run either way:
-#   python -m src.examples.potential_check        (from repo root)
+#   python -m legacy.potential_check        (from repo root)
 #   python src/examples/potential_check.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.structs.propellants import xenon
 from src.magnetics.spt70_system import field_on_grid
 from src.neutrals.neutrals import node_volume

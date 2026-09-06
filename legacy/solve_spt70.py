@@ -14,21 +14,21 @@
 # result.
 #
 # Run:
-#   python -m src.examples.solve_spt70
+#   python -m legacy.solve_spt70
 #   python src/examples/solve_spt70.py
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.structs.propellants import xenon
 from src.solver import PlasmaState, FluidElectronSolver
-from src.examples.field_maps import save_field_maps
+from src.viz import save_field_maps
 
 
 def main(out="electron_solution.png", maps_dir="maps"):

@@ -104,6 +104,87 @@ def ionization_probability(Te_at_particle: np.ndarray,
     return -np.expm1(-nu * dt)
 
 
+def apply_ionization_weighted(neutrals: ParticleArray,
+                              ions: ParticleArray,
+                              grid: Grid2D,
+                              Te: np.ndarray,
+                              n_e: np.ndarray,
+                              gas: WorkingSubstance,
+                              dt: float,
+                              ion_weight: float,
+                              rng: np.random.Generator | None = None,
+                              ) -> int:
+    """MCC ionization with SEPARATE ion and neutral macroparticle weights.
+
+    Why this exists alongside apply_ionization: in a Hall thruster n_n is two
+    orders of magnitude above n_i (1e19 vs 1e17). One shared weight therefore
+    cannot serve both — sized for the neutrals it leaves under one ion
+    macroparticle per cell, and sized for the ions it needs ten million
+    neutrals. The fix is the standard one: give ions their own, smaller weight
+    and transfer weight rather than whole particles.
+
+    Each neutral macroparticle of weight w spawns
+
+        N ~ Poisson(w * nu * dt / ion_weight),   nu = n_e k_iz(Te),
+
+    ions of weight `ion_weight`, and loses N*ion_weight from its own weight.
+    The expected transferred weight is w*nu*dt, exactly the physical rate, so
+    the source is unbiased regardless of the weight ratio. Poisson rather than
+    Bernoulli because with a ratio of ~50 the per-particle expectation is no
+    longer small, and a coin flip would silently cap the rate at one event per
+    macroparticle per step.
+
+    A neutral worn down below one ion weight cannot transfer again, so it is
+    resolved by Russian roulette: promoted to a full-weight ion with
+    probability w/ion_weight, deleted otherwise. Unbiased in expectation, and
+    it stops the population filling up with immortal near-zero-weight
+    particles. Returns the number of newborn ion macroparticles.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+    if len(neutrals) == 0:
+        return 0
+
+    left_z, lower_r, wr, wu = locate_particle(neutrals, grid)
+    Te_p = gather(Te, left_z, lower_r, wr, wu)
+    ne_p = gather(n_e, left_z, lower_r, wr, wu)
+    nu = ne_p * gas.ionization_rate_Te(Te_p)
+
+    lam = neutrals.weight * nu * dt / ion_weight
+    # a macroparticle cannot give away more weight than it has
+    lam = np.minimum(lam, neutrals.weight / ion_weight)
+    counts = rng.poisson(np.maximum(lam, 0.0))
+    counts = np.minimum(counts, np.floor(neutrals.weight / ion_weight)).astype(np.int64)
+
+    n_new = int(counts.sum())
+    if n_new:
+        born = ParticleArray(
+            z=np.repeat(neutrals.z, counts),
+            r=np.repeat(neutrals.r, counts),
+            v_z=np.repeat(neutrals.v_z, counts),
+            v_r=np.repeat(neutrals.v_r, counts),
+            v_theta=np.repeat(neutrals.v_theta, counts),
+            weight=np.full(n_new, ion_weight),
+        )
+        ions.extend(born)
+        neutrals.weight -= counts * ion_weight
+
+    # Russian roulette on the worn-down remainder
+    low = neutrals.weight < ion_weight
+    if low.any():
+        promote = np.zeros(len(neutrals), dtype=bool)
+        promote[low] = rng.random(int(low.sum())) < neutrals.weight[low] / ion_weight
+        if promote.any():
+            k = int(promote.sum())
+            ions.extend(ParticleArray(
+                neutrals.z[promote].copy(), neutrals.r[promote].copy(),
+                neutrals.v_z[promote].copy(), neutrals.v_r[promote].copy(),
+                neutrals.v_theta[promote].copy(), np.full(k, ion_weight)))
+            n_new += k
+        neutrals.keep(~low)
+    return n_new
+
+
 def apply_ionization(neutrals: ParticleArray,
                      ions: ParticleArray,
                      grid: Grid2D,

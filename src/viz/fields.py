@@ -1,21 +1,18 @@
-# Dump every 2D field of a solved PlasmaState as its own colour map into a
-# folder. The example scripts otherwise only show 1D midline slices; this
-# lets you see the full (N_z, N_r) solution — inputs (B, lambda, n_e, n_n)
-# and electron outputs (Te, phi, E_z, E_r, |E|) — one PNG per field.
+# One colour map per 2D field of a PlasmaState.
 #
-# Run standalone (solves the SPT-70 first, then writes the maps):
-#   python -m src.examples.field_maps
-# Or from another script:  save_field_maps(state, "maps")
+# The terminal output of a run only ever shows midline slices; this draws the
+# full (N_z, N_r) solution — inputs (B, lambda, n_e, n_n) and electron outputs
+# (Te, phi, E_z, E_r, |E|) — as one PNG per field.
+#
+#   save_field_maps(state, "maps")                     # everything solved
+#   plot_field(S_iz, thruster, grid, ..., path)        # one extra field
 
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.solver.state import PlasmaState
+from ..solver.state import PlasmaState
 
 
 # (attribute, filename, title, colorbar label, unit scale, cmap, signed)
@@ -34,7 +31,7 @@ _FIELD_SPECS = [
 ]
 
 
-def _plot_field(field, thruster, grid, title, label, scale, cmap, signed, out):
+def plot_field(field, thruster, grid, title, label, scale, cmap, signed, out):
     """Write a single field as a masked pcolormesh map with channel walls."""
     z_mm = grid.z_nodes() * 1e3
     r_mm = grid.r_nodes() * 1e3
@@ -47,12 +44,12 @@ def _plot_field(field, thruster, grid, title, label, scale, cmap, signed, out):
     )
     data = np.where(body, np.nan, field) * scale
 
-    # Robust colour limits: the flat-face interface leak is fixed at the
-    # source (field_from_flux one-sided gradients), but the pole-tip corner
-    # singularity still leaves a few near-exit wall nodes with an unbounded,
-    # mesh-dependent field that would otherwise saturate the scale. Clip to
-    # the 1st/99th percentile of the finite data, as magnetic_field does for
-    # its |B| map, and flag the clipping on the colourbar.
+    # Robust colour limits. The iron-interface leak is gone at the source (the
+    # FEM path differentiates a continuous psi, magnetics.fem), but the
+    # pole-tip corner singularity still leaves a few near-exit nodes with an
+    # unbounded, mesh-dependent field that would otherwise saturate the scale,
+    # and the in-metal field is an order of magnitude above the channel one.
+    # Clip to the 1st/99th percentile of the finite data and flag it on the bar.
     finite = data[np.isfinite(data)]
     if signed:
         vmax = np.percentile(np.abs(finite), 99)
@@ -92,31 +89,16 @@ def save_field_maps(state: PlasmaState, out_dir: str | Path = "maps") -> list[Pa
         if field is None:  # unsolved output — skip
             continue
         out = out_dir / f"{fname}.png"
-        _plot_field(field, state.thruster, state.grid,
-                    title, label, scale, cmap, signed, out)
+        plot_field(field, state.thruster, state.grid,
+                   title, label, scale, cmap, signed, out)
         written.append(out)
 
     # |E| magnitude, if both components solved
     if state.E_z is not None and state.E_r is not None:
         out = out_dir / "E_magnitude.png"
-        _plot_field(np.hypot(state.E_z, state.E_r), state.thruster, state.grid,
-                    "Electric field |E|", "|E|, kV/m", 1e-3, "magma", False, out)
+        plot_field(np.hypot(state.E_z, state.E_r), state.thruster, state.grid,
+                   "Electric field |E|", "|E|, kV/m", 1e-3, "magma", False, out)
         written.append(out)
 
     print(f"saved {len(written)} field maps to {out_dir}/")
     return written
-
-
-def main(out_dir: str = "maps"):
-    from src.examples.common import spt70
-    from src.structs.propellants import xenon
-    from src.solver import FluidElectronSolver
-
-    thruster, grid = spt70()
-    state = PlasmaState.placeholder(grid, thruster, xenon())
-    state = FluidElectronSolver(state).solve(verbose=True)
-    save_field_maps(state, out_dir)
-
-
-if __name__ == "__main__":
-    main()

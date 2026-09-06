@@ -5,18 +5,18 @@
 # Katz, Ch. 7.3.4).
 #
 # Run:
-#   python -m src.examples.voltage_sweep
+#   python -m legacy.voltage_sweep
 #   python src/examples/voltage_sweep.py
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.structs.propellants import xenon
 from src.solver import PlasmaState, FluidElectronSolver
 

@@ -25,18 +25,18 @@
 # order of magnitude.
 #
 # Run either way:
-#   python -m src.examples.hall_parameter        (from repo root)
+#   python -m legacy.hall_parameter        (from repo root)
 #   python src/examples/hall_parameter.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.structs.propellants import xenon
 from src.magnetics.spt70_system import mid_channel_B
 from src.electron_liquid.default_plasm_params import omega_ce

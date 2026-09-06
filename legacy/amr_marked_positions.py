@@ -5,12 +5,12 @@
 # pinned to the pole-tip corner or spreads to other ROI hotspots.
 #
 # Run:
-#   python -m src.examples.amr_marked_positions
+#   python -m legacy.amr_marked_positions
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import matplotlib.pyplot as plt

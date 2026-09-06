@@ -4,18 +4,18 @@
 #         (3) density near the anode vs the kinetic estimate 4*mdot/(m*v_bar*S).
 # Also saves the time-averaged density map (neutral_density.png).
 # Run either way:
-#   python -m src.examples.neutral_flow        (from repo root)
+#   python -m legacy.neutral_flow        (from repo root)
 #   python src/examples/neutral_flow.py        (directly / VS Code Run)
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.examples.common import spt70
+from src.config import spt70
 from src.structs.classes import ParticleArray
 from src.injection.inject import inject_on_grid
 from src.deposition.deposit import locate_particle, scatter
