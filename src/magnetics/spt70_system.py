@@ -67,6 +67,36 @@ def iron_mask(r: np.ndarray, z: np.ndarray, dilate: int = 0) -> np.ndarray:
     return mask
 
 
+def material_edges() -> tuple[np.ndarray, np.ndarray]:
+    """Every r- and z-coordinate at which a material boundary sits."""
+    boxes = list(IRON_PIECES) + [INNER_COIL, OUTER_COIL]
+    r_e = sorted({v for b in boxes for v in b[:2]})
+    z_e = sorted({v for b in boxes for v in b[2:]})
+    return np.array(r_e), np.array(z_e)
+
+
+def check_conformal(r: np.ndarray, z: np.ndarray, tol: float = 1e-9):
+    """Material edges that do NOT lie on a grid line, as (axis, coordinate).
+
+    The FEM path assumes a conformal mesh: every triangle wholly inside one
+    material, with the mu jump on element edges. That holds only while each
+    box edge coincides with a grid line. It does for the default 121x221
+    grid, but NOT for arbitrary resolutions — e.g. OUTER_POLE starts at
+    r = 35.5 mm, which is half a cell off on a 61- or 181-node radial grid.
+    When that happens the material assignment (by triangle centroid) silently
+    moves the pole face by dr/2, so a mesh-refinement study measures a
+    CHANGING GEOMETRY rather than a converging discretisation. Call this
+    before trusting a resolution sweep.
+    """
+    bad = []
+    for axis, nodes, edges in (("r", r, material_edges()[0]),
+                               ("z", z, material_edges()[1])):
+        for e in edges:
+            if np.min(np.abs(nodes - e)) > tol:
+                bad.append((axis, float(e)))
+    return bad
+
+
 def build_spt70_system(nr: int, nz: int):
     """(r, z) solver grid, permeability map and coil current density."""
     r = np.linspace(0.0, DOMAIN_R, nr)

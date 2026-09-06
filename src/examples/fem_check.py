@@ -6,7 +6,7 @@
 # Checks (printed):
 #   1) mid-channel B_r(z) agrees with FD to ~1% (physics unchanged),
 #   2) lambda (streamfunction) correlates with the FD one (layers unchanged),
-#   3) the global |B_r| max on the grid drops sharply (leak/corner tamed).
+#   3) the |B_r| max over the VACUUM nodes is lower for FEM (leak tamed).
 # Also saves fem_field.png: FD vs FEM B_r maps + the AMR mesh at a pole tip.
 # Run:
 #   python -m src.examples.fem_check
@@ -20,7 +20,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.examples.common import spt70
-from src.magnetics.spt70_system import field_on_grid
+from src.magnetics.spt70_system import CHANNEL_Z0, field_on_grid, iron_mask
 from src.magnetics import fem
 
 
@@ -46,9 +46,17 @@ def main(out="fem_field.png"):
     corr = np.corrcoef(lam_fd[ch], lam_fe[ch])[0, 1]
     print(f"2) lambda FD-vs-FEM correlation over channel: {corr:.4f}")
 
-    # 3) global max (the leak/corner indicator)
-    print(f"3) global |Br| max on grid: FD {np.abs(Br_fd).max()*1e4:.0f} G, "
-          f"FEM {np.abs(Br_fe).max()*1e4:.0f} G")
+    # 3) max over the VACUUM nodes — the leak indicator, and it has to be
+    # restricted that way. Both fields are now honest inside the metal (psi,
+    # and so B, is continuous through it), so a whole-grid max just reports
+    # how strong the field inside a pole piece is: ~2000 G for FEM against
+    # 1500 G for FD, which says nothing about the leak. The leak lives in the
+    # ring of VACUUM nodes touching the iron, where FD's centered stencil
+    # straddles the pole face and FEM's per-material recovery does not — and
+    # that ring is where both maxima sit.
+    vac = ~iron_mask(r_n, z_n + CHANNEL_Z0).T
+    print(f"3) |Br| max over vacuum nodes: FD {np.abs(Br_fd[vac]).max()*1e4:.0f} G, "
+          f"FEM {np.abs(Br_fe[vac]).max()*1e4:.0f} G")
 
     # --- figure: FD vs FEM B_r maps + AMR mesh near the inner pole tip ---
     body = (z_n[:, None] < thruster.channel_length) & (
@@ -72,7 +80,6 @@ def main(out="fem_field.png"):
 
     # AMR mesh, zoomed on the inner pole tip (r~17.5, z~30 mm discharge)
     pts, tris, _, _, _ = fem.solve_spt70_fem(B0, amr_passes=4, amr_frac=0.05)
-    from src.magnetics.spt70_system import CHANNEL_Z0
     ax = axes[2]
     ax.triplot((pts[:, 1] - CHANNEL_Z0) * 1e3, pts[:, 0] * 1e3, tris,
                lw=0.3, color="0.4")
