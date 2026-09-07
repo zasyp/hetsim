@@ -66,7 +66,7 @@ class HybridSettings:
     # ~14% density noise per cell before smoothing. Halving it doubles the
     # cost and cuts noise by 1.4.
 
-    weight_ratio: float = 100.0
+    weight_ratio: float = 30.0
     # Ion weight = weight / weight_ratio. Ions need their own, smaller weight
     # because n_i is ~100x below n_n: at the shared weight the channel would
     # hold under one ion macroparticle per cell. See
@@ -78,8 +78,8 @@ class HybridSettings:
     smooth_passes: int = 2           # binomial filter passes on the densities
     T_wall: float = 750.0            # K, wall/anode re-emission temperature
 
-    seed_n_n: float = 1.5e19         # 1/m^3, initial channel neutral density
-    seed_n_i: float = 1e18           # 1/m^3, initial seed plasma
+    seed_n_n: float = 2.5e19         # 1/m^3, initial channel neutral density
+    seed_n_i: float = 2e17           # 1/m^3, initial seed plasma
     seed_T_i: float = 1000.0         # K, seed ion temperature
 
     electron: SolverSettings = field(default_factory=SolverSettings)
