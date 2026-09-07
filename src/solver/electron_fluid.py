@@ -76,6 +76,15 @@ class SolverSettings:
     # fold and lets the hot layers dump their heat into the cold ones.
     # True reproduces the pre-2025 behaviour.
     anom_in_heat_flux: bool = False
+    # Anchor the thermalized-potential gauge on the anode layer density, so
+    # that the physical phi equals V_d where solve_potential pins phi*.
+    # False restores the old max(n_e) reference.
+    anode_gauge: bool = True
+    # Cap |ln(n_e/n_ref)| at this many e-foldings, i.e. the Boltzmann term at
+    # this many Te. Past a few Te the Maxwellian tail that the relation
+    # assumes is exhausted (a fraction exp(-k) of the population), so the
+    # relation stops holding; None disables the cap.
+    boltzmann_clamp: float | None = 3.0
     relax: float = 0.2             # Te under-relaxation
     max_iter: int = 300
     tol: float = 1e-3              # eV, max |dTe| for convergence
@@ -185,7 +194,14 @@ class FluidElectronSolver:
         # until then this is a raw number, not a discharge current.
         self.I_anode_electron = float(G_face[0] * (phi_star[0] - phi_star[1]))
 
-        phi = potential_on_grid(phi_star, g.layer_lambda, st.lam, self.Te_layers, st.n_e)
+        # Gauge of the thermalized potential (see potential_on_grid): one
+        # GLOBAL reference, anchored on the anode layer so that phi = V_d
+        # there, which is the boundary condition solve_potential actually
+        # imposes on phi*.
+        n_ref = float(g.average(st.n_e)[0]) if self.s.anode_gauge else None
+        phi = potential_on_grid(phi_star, g.layer_lambda, st.lam,
+                                self.Te_layers, st.n_e, n_ref=n_ref,
+                                boltzmann_clamp=self.s.boltzmann_clamp)
         E_z, E_r = electric_field(phi, self.z, self.r)
 
         phi_star_grid = g.to_grid(phi_star)

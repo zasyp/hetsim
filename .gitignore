@@ -10,3 +10,5 @@ __pycache__/
 /out/
 /maps/
 /run_*/
+# archived run folders (runs_YYYY-MM-DD/), same reasoning
+/runs_*/
