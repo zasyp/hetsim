@@ -57,13 +57,24 @@ from src.electron_liquid.ionization import ionization_source
 from src.magnetics.spt70_system import DOMAIN_R, DOMAIN_Z, check_conformal
 
 
-def main(macro_steps: int = 900, out_dir: str = "out",
-         settle_fraction: float = 0.5):
+def main(macro_steps: int = 3000, out_dir: str = "out",
+         settle_fraction: float = 0.5, grid=None, electron=None):
+    """Run the reference discharge and write the report folder.
+
+    grid / electron override the Grid2D and the SolverSettings from
+    config.spt70() — they exist so a resolution or calibration sweep can
+    launch several runs side by side without editing the source between
+    them. Both default to the reference configuration.
+    """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    thruster, grid = spt70()
-    hybrid = HybridSolver(thruster, grid, HybridSettings(seed_n_i=5e17))
+    thruster, ref_grid = spt70()
+    grid = ref_grid if grid is None else grid
+    settings = HybridSettings(seed_n_i=1e17)
+    if electron is not None:
+        settings.electron = electron
+    hybrid = HybridSolver(thruster, grid, settings)
 
     settle = int(macro_steps * settle_fraction)
     print(f"dt {hybrid.dt:.2e} s (ions) / {hybrid.dt_slow:.2e} s (everything else)")
@@ -114,8 +125,8 @@ def _write_setup(hybrid, path: Path, macro_steps, settle):
         "-" * 62,
         f"  channel            r {thr.r_min*1e3:.1f}-{thr.r_max*1e3:.1f} mm, "
         f"L = {thr.channel_length*1e3:.0f} mm",
-        f"  propellant         {thr.propellant.name}, mdot = {thr.mdot*1e6:.2f} mg/s",
-        f"  discharge voltage  {thr.voltage} V",
+        f"  propellant         {thr.propellant.name}, mdot (anode) = {thr.mdot*1e6:.2f} mg/s",
+        f"  V_d discharge voltage  {thr.voltage} V",
         f"  B_r max            {thr.B_r_max*1e4:.0f} G (calibration target at "
         f"the mid-channel exit)",
         f"  anode / walls      {thr.temperature_anode:.0f} K, "
@@ -137,10 +148,10 @@ def _write_setup(hybrid, path: Path, macro_steps, settle):
         "",
         "heavy species (kinetic)",
         "-" * 62,
-        f"  neutral weight     {s.weight:.2e} atoms per macroparticle",
+        f"  W_n neutral weight     {s.weight:.2e} real atoms per macroparticle",
         f"  ion weight         {hybrid.ion_weight:.2e} "
         f"(= weight / {s.weight_ratio:g})",
-        f"  dt                 {hybrid.dt:.2e} s (ion push, CFL)",
+        f"  dt      ion push step  {hybrid.dt:.2e} s (CFL-limited)",
         f"  dt_slow            {hybrid.dt_slow:.2e} s "
         f"(= {s.n_sub} x dt: injection, neutrals, ionization, electrons)",
         f"  density smoothing  {s.smooth_passes} binomial passes",
@@ -150,11 +161,14 @@ def _write_setup(hybrid, path: Path, macro_steps, settle):
         "",
         "electron fluid",
         "-" * 62,
-        f"  lambda layers      {e.n_layers}",
+        f"  N_lambda field-line layers  {e.n_layers}",
         f"  anomalous transport {e.anomaly_preset} preset, "
         f"p_B = {e.background_pressure_torr:g} Torr",
         f"  Te boundaries      anode {e.Te_anode} eV, cathode {e.Te_cathode} eV",
-        f"  kappa_coeff        {e.kappa_coeff:g}  <- the main calibration knob",
+        f"  kappa_coeff        {e.kappa_coeff:g}   dimensionless number in"
+        f" kappa_perp = coeff*e*n_e*Te*mu_perp;",
+        f"                     classical values are 5/2 (kinetic theory) and"
+        f" 4.7 (Braginskii, magnetized limit)",
         f"  Gummel loop        relax {e.relax:g}, tol {e.tol:g} eV, "
         f"max {e.max_iter} iter",
         "",
@@ -276,6 +290,18 @@ def _write_history(hybrid, path: Path):
 
 # --- numbers --------------------------------------------------------------
 
+def _I_ceiling(hybrid) -> float:
+    """Largest beam current the mass flow can support [A]: every atom singly
+    ionized and every ion reaching the beam, I_max = e * mdot / m_i. eta_m is
+    measured against it, and no I_b can exceed it (1.837 A for xenon at
+    2.5 mg/s) -- which is why I_b is not the ~2.2 A datasheet DISCHARGE
+    current I_d, a quantity this model does not yet compute.
+    """
+    import scipy.constants as cst
+    th = hybrid.thruster
+    return cst.elementary_charge * th.mdot / th.mass
+
+
 def _write_performance(hybrid, path: Path, macro_steps, settle):
     perf = hybrid.performance()
     mb = hybrid.mass_balance()
@@ -296,26 +322,31 @@ def _write_performance(hybrid, path: Path, macro_steps, settle):
     ]
     if perf:
         lines += [
-            f"  thrust             {perf['thrust_mN']:.3f} mN"
+            f"  T       thrust                  {perf['thrust_mN']:.3f} mN"
             f"   (ions {perf['thrust_ion_mN']:.3f}, "
             f"neutrals {perf['thrust_neutral_mN']:.3f})",
-            f"  specific impulse   {perf['Isp_s']:.0f} s",
-            f"  beam current       {perf['I_beam_A']:.3f} A",
+            f"  I_sp    specific impulse        {perf['Isp_s']:.0f} s"
+            f"   (on total mdot)",
+            f"  I_b     beam ion current        {perf['I_beam_A']:.3f} A"
+            f"   (ceiling e*mdot/m_i = {_I_ceiling(hybrid):.3f} A)",
             "",
             "ion velocities",
             "-" * 60,
-            f"  mean axial v_z     {perf['v_exit_mean_kms']:.2f} km/s",
-            f"  mean speed         {perf['v_speed_mean_kms']:.2f} km/s",
-            f"  beam voltage       {perf['V_beam_V']:.1f} V "
+            f"  <v_z>   mean axial velocity     {perf['v_exit_mean_kms']:.2f} km/s",
+            f"  <|v|>   mean speed              {perf['v_speed_mean_kms']:.2f} km/s",
+            f"  V_b     beam voltage            {perf['V_beam_V']:.1f} V "
             f"(V_d = {hybrid.thruster.voltage} V)",
-            f"  voltage util.      {perf['voltage_utilization']:.3f}",
-            f"  mass util.         {perf['mass_utilization']:.3f}",
+            f"  eta_v   voltage utilization     {perf['voltage_utilization']:.3f}"
+            f"   = V_b / V_d",
+            f"  eta_m   mass utilization        {perf['mass_utilization']:.3f}"
+            f"   = I_b / (e*mdot/m_i)",
             "",
             "divergence",
             "-" * 60,
-            f"  mean half-angle    {perf['divergence_mean_deg']:.1f} deg",
-            f"  95% cone           {perf['divergence_95_deg']:.1f} deg",
-            f"  divergence eff.    {perf['divergence_efficiency']:.3f}",
+            f"  <theta> mean half-angle         {perf['divergence_mean_deg']:.1f} deg",
+            f"  theta95 95% cone half-angle     {perf['divergence_95_deg']:.1f} deg",
+            f"  eta_d   divergence efficiency   {perf['divergence_efficiency']:.3f}"
+            f"   = <cos theta>",
         ]
     else:
         lines.append("  no ions crossed the plume boundary in the beam window.")
@@ -324,12 +355,13 @@ def _write_performance(hybrid, path: Path, macro_steps, settle):
         "",
         "mass balance [particles]",
         "-" * 60,
-        f"  injected           {mb['injected']:.4e}",
-        f"  seeded             {mb['seeded']:.4e}",
-        f"  in domain          {mb['in_domain']:.4e}",
-        f"  beam (ions)        {mb['beam']:.4e}",
-        f"  escaped neutrals   {mb['neutral_escape']:.4e}",
-        f"  residual           {mb['residual']:.4e}  (rel {mb['rel_error']:.2e})",
+        f"  N_inj   injected by the anode   {mb['injected']:.4e}",
+        f"  N_seed  present at t = 0        {mb['seeded']:.4e}",
+        f"  N_dom   still in the domain     {mb['in_domain']:.4e}",
+        f"  N_beam  left as beam ions       {mb['beam']:.4e}",
+        f"  N_esc   left as un-ionized gas  {mb['neutral_escape']:.4e}",
+        f"  ---     residual                {mb['residual']:.4e}"
+        f"  (rel {mb['rel_error']:.2e})",
         "",
         "  The residual is the stochastic injector, not a leak: inject_on_grid",
         "  emits a whole number of macroparticles per step and rounds the",
