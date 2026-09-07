@@ -21,7 +21,7 @@ import numpy as np
 from ..electron_liquid.default_plasm_params import omega_ce
 from ..electron_liquid.collisions import (
     neutral_collision, ionization_collision, coulomb_collision,
-    anomaly_collision, anomalous_alpha, electron_collision,
+    anomaly_collision, anomalous_alpha, electron_collision, wall_collision,
     ANOMALY_PROFILE_PRESETS,
 )
 from ..electron_liquid.mobility import (
@@ -45,7 +45,14 @@ from .state import PlasmaState
 @dataclass
 class SolverSettings:
     n_layers: int = 40
-    anomaly_preset: str = "SPT-100"
+    # Marks et al., arXiv:2507.08113, Sec. IV A: "the four-parameter model
+    # with alpha_anom = 1/16, beta_anom ~ 0.99, z_anom ~ 1.05, and
+    # L_anom ~ 0.38 may be a good starting choice when simulating OTHER
+    # thrusters at 300 V" -- which is what this is. The SPT-100 and H9
+    # tuples are that paper's posterior medians for those two specific
+    # thrusters and carry their geometry with them; borrowing one of them
+    # puts the transport barrier where THAT thruster's exit plane was.
+    anomaly_preset: str = "GENERIC_300V"
     background_pressure_torr: float = 0.0
     Te_anode: float = 4.0          # eV, Dirichlet at the anode layer
     Te_cathode: float = 3.0        # eV, Dirichlet at the cathode layer
@@ -60,6 +67,15 @@ class SolverSettings:
     # rule of thumb) — this is the main calibration knob and should be
     # pinned against data / a kinetic run.
     kappa_coeff: float = 35.0
+    # Whether the anomalous collision frequency enters the PERPENDICULAR
+    # THERMAL conductivity as well as the mobility. Brick, Roberts & Jorns
+    # (AIAA 2025-0298, Sec. IV): "we do not include the anomalous collision
+    # frequency in the perpendicular conductivity. Our previous work showed
+    # that doing so would artificially lower the electron temperature."
+    # nu_anom dominates nu, so leaving it in inflates kappa_perp several
+    # fold and lets the hot layers dump their heat into the cold ones.
+    # True reproduces the pre-2025 behaviour.
+    anom_in_heat_flux: bool = False
     relax: float = 0.2             # Te under-relaxation
     max_iter: int = 300
     tol: float = 1e-3              # eV, max |dTe| for convergence
@@ -92,6 +108,17 @@ class FluidElectronSolver:
             background_pressure_torr=s.background_pressure_torr, **preset,
         )[:, None] * np.ones(st.grid.N_r)
 
+        # Nodes that actually see a wall: inside the channel annulus and
+        # upstream of the exit plane. Everywhere else (the plume, and the
+        # wedge inside r_min) has no wall, so nu_w must be zero there —
+        # notably at the transport barrier, which sits just PAST the exit.
+        th = st.thruster
+        rr = self.r[None, :]
+        zz = self.z[:, None]
+        self.in_channel = ((zz <= th.channel_length)
+                           & (rr >= th.r_min) & (rr <= th.r_max))
+        self.channel_width = th.r_max - th.r_min
+
         # initial Te on layers: interior at Te_init, ends at the BCs
         self.Te_layers = np.full(s.n_layers, s.Te_init)
         self.Te_layers[0] = s.Te_anode
@@ -103,14 +130,29 @@ class FluidElectronSolver:
         """Collision frequency, cross-field mobility and thermal
         conductivity on the grid at the current Te."""
         st = self.state
-        nu = electron_collision(
-            neutral_collision(Te_grid, st.n_n, st.gas),
-            ionization_collision(Te_grid, st.n_n, st.gas),
-            coulomb_collision(st.n_e, Te_grid),
-            anomaly_collision(self.B, self.alpha),
+        # electron-wall term: needs the sheath drop, which depends on Te,
+        # so it is rebuilt every Gummel pass alongside the other channels
+        gamma_w = sheath.see_yield(Te_grid, st.thruster.wall_material)
+        nu_w = np.where(
+            self.in_channel,
+            wall_collision(Te_grid, gamma_w, st.gas.mass, self.channel_width),
+            0.0,
         )
+        nu_en = neutral_collision(Te_grid, st.n_n, st.gas)
+        nu_iz = ionization_collision(Te_grid, st.n_n, st.gas)
+        nu_ei = coulomb_collision(st.n_e, Te_grid)
+        nu_an = anomaly_collision(self.B, self.alpha)
+
+        nu = electron_collision(nu_en, nu_iz, nu_ei, nu_an, nu_w)
         mu = perp_mobility(zeroB_mobility(nu), hall_parameter(self.omega, nu))
-        kappa = perp_thermal_conductivity(st.n_e, Te_grid, mu, self.s.kappa_coeff)
+
+        if self.s.anom_in_heat_flux:
+            mu_q = mu
+        else:                       # see SolverSettings.anom_in_heat_flux
+            nu_q = electron_collision(nu_en, nu_iz, nu_ei, 0.0, nu_w)
+            mu_q = perp_mobility(zeroB_mobility(nu_q),
+                                 hall_parameter(self.omega, nu_q))
+        kappa = perp_thermal_conductivity(st.n_e, Te_grid, mu_q, self.s.kappa_coeff)
         return nu, mu, kappa
 
     def _potential(self, mu, Te_grid):
@@ -130,6 +172,18 @@ class FluidElectronSolver:
         k_iz = st.gas.ionization_rate_Te(Te_grid)
         dI_iz = layer_ionization_current(g.idx, st.n_e, st.n_n, k_iz, g.dV, self.s.n_layers)
         phi_star = solve_potential(G_face, dI_iz, st.thruster.voltage, 0.0)
+
+        # Raw cross-field current across the anode-side layer face [A].
+        # Summing the continuity rows telescopes to
+        #     I_face[-1] - I_face[0] = sum(dI_iz),
+        # so the two boundary faces differ by the ion current born between
+        # them. UNRESOLVED: which boundary (if either) is the discharge
+        # current. Identifying I_d = I_beam + this was tried and FAILS —
+        # it goes negative during the transient and yields I_beam/I_d > 1,
+        # which is impossible. Getting I_d out of this formulation needs
+        # the sign convention of the layer solve pinned down properly;
+        # until then this is a raw number, not a discharge current.
+        self.I_anode_electron = float(G_face[0] * (phi_star[0] - phi_star[1]))
 
         phi = potential_on_grid(phi_star, g.layer_lambda, st.lam, self.Te_layers, st.n_e)
         E_z, E_r = electric_field(phi, self.z, self.r)
@@ -212,6 +266,7 @@ class FluidElectronSolver:
         d["converged"] = bool(delta < self.s.tol)
         d["residual_eV"] = float(delta)
         d["Te_peak"] = float(self.Te_layers.max())
+        d["I_anode_electron"] = float(getattr(self, "I_anode_electron", 0.0))
         d["z_layer"] = self.geom.z_layer
         d["Te_layers"] = self.Te_layers.copy()
         return d

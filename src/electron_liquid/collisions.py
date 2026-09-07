@@ -224,11 +224,65 @@ def relax_collision(nu_new:np.ndarray,
     return r * nu_new + (1 - r) * nu_old
 
 
+def wall_collision(Te:np.ndarray,
+                   gamma:np.ndarray,
+                   ion_mass:float,
+                   channel_width:float,
+                   ) -> np.ndarray:
+    """Electron-wall momentum-transfer collision frequency [1/s].
+
+    Near-wall conductivity: an electron that crosses the sheath is absorbed
+    and replaced by a secondary with a randomized velocity, which lets it
+    step across B. Boeuf & Garrigues (J. Appl. Phys. 84, 3541, 1998); the
+    fifth term of the collision sum in Brick, Roberts & Jorns (AIAA
+    2025-0298, Eq. 5).
+
+    Form and coefficients follow the WallSheath model of HallThruster.jl
+    (src/physics/wall_losses.jl, freq_electron_wall!), which sets the rate
+    from the ION current to the wall rather than the electron flux -- at a
+    floating wall the two balance, and the ion side needs no Boltzmann
+    factor:
+
+        nu_w = h * u_B(Te) / (dr * (1 - gamma)),   u_B = sqrt(e Te / m_i)
+
+    h = 0.86/sqrt(3) is the sheath-edge-to-centre density ratio (Godyak's
+    heuristic, cited there), dr the channel width, and 1/(1 - gamma) the
+    secondary-emission enhancement: every emitted secondary lets another
+    plasma electron reach the wall.
+
+    gamma is clamped at the space-charge limit 1 - 8.3*sqrt(m_e/m_i), the
+    same cap sheath_interaction.space_charge_limited_yield reports; without
+    it the 1/(1 - gamma) factor blows up (and changes sign) once the raw
+    Maxwellian-averaged yield crosses unity, which it does above ~30 eV.
+
+    An earlier version of this function derived the rate from the ELECTRON
+    thermal flux through the sheath instead. It agrees with the form above
+    to 1% while gamma < 1, but runs 2.4x high once the sheath is space-
+    charge limited -- which is exactly the regime this model operates in.
+
+    Returns the in-channel value; the caller must zero it in the plume,
+    where there is no wall (HallThruster.jl does the same with a linear
+    transition at the exit plane).
+    """
+    Te = np.maximum(np.asarray(Te, dtype=float), TE_FLOOR)
+    gamma_max = 1.0 - 8.3 * np.sqrt(const.electron_mass / ion_mass)
+    gamma = np.minimum(np.asarray(gamma, dtype=float), gamma_max)
+    u_bohm = np.sqrt(const.elementary_charge * Te / ion_mass)
+    h = 0.86 / np.sqrt(3.0)
+    return h * u_bohm / (channel_width * (1.0 - gamma))
+
+
 def electron_collision(nu_en:np.ndarray,
                        nu_iz:np.ndarray,
                        nu_ei:np.ndarray,
                        nu_anom:np.ndarray,
+                       nu_wall:np.ndarray | float = 0.0,
                        ) -> np.ndarray:
     """Total effective electron momentum-transfer frequency [1/s]:
-    the sum of the classical channels and the anomalous term."""
-    return nu_en + nu_iz + nu_ei + nu_anom
+    the sum of the classical channels and the anomalous term.
+
+    Five contributions, matching Brick, Roberts & Jorns (AIAA 2025-0298,
+    Eq. 5): nu_e = nu_ei + nu_en + nu_iz + nu_w + nu_an. nu_wall defaults
+    to 0 so callers that do not model the walls keep the old four-term
+    behaviour."""
+    return nu_en + nu_iz + nu_ei + nu_anom + nu_wall
