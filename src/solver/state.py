@@ -24,9 +24,9 @@ from ..ions.moments import number_density, smooth
 # Floors on the deposited densities. Not cosmetic: the cross-field conductance
 # that the potential solve inverts is proportional to n_e, so an empty cell
 # would make the layer conductance singular; the collision frequencies divide
-# by n_n. The floors are far below any density the model resolves (n_e peaks
-# near 1e17, n_n near 1e20), so they only ever act in cells no particle has
-# reached yet.
+# by n_n. The floors are far below any density the model resolves (n_e runs
+# 1e17-1e18 in the channel, n_n 1e19-1e20), so they only ever act in cells
+# no particle has reached yet.
 N_E_FLOOR = 1e15        # 1/m^3
 N_N_FLOOR = 1e15        # 1/m^3
 

@@ -69,9 +69,10 @@ def coulomb_collision(electron_concentration:np.ndarray,
     return 2.91e-12 * electron_concentration * ln_lambda * Te ** -1.5
 
 
-# Calibrated 4+2-parameter anomalous-transport model (Marks & Jorns,
-# "Uncertainty quantification of a multi-component Hall thruster model at
-# varying facility pressures", arXiv:2507.08113, 2025 -- Eqs. 3-4, p.3;
+# Calibrated 4+2-parameter anomalous-transport model (T. A. Marks, J. D.
+# Eckels, G. E. Mora, A. A. Gorodetsky, "Uncertainty quantification of a
+# multi-component Hall thruster model at varying facility pressures",
+# arXiv:2507.08113, 2025 -- Eqs. 3-4, p.3;
 # posterior medians in Tables IV-V, p.9). Each preset is the posterior
 # median for (alpha_anom, beta_anom, z_anom, L_anom, delta_z_anom) fitted
 # to thruster discharge-current/thrust data at 300 V; GENERIC_300V is the
@@ -172,7 +173,8 @@ def anomalous_alpha(z:np.ndarray,
 
 def anomaly_collision(B:np.ndarray, alpha:float | np.ndarray = 1 / 16) -> np.ndarray:
     """Bohm-type anomalous frequency nu_anom = alpha * omega_ce. alpha is
-    the empirical knob (classic 1/16); pass an array to use different
+    the empirical knob (classic 1/16: the Bohm collision frequency
+    nu_B = omega_c / 16 of Goebel & Katz Eq. 7.4-12); pass an array to use different
     values inside the channel and in the plume — e.g. the output of
     anomalous_transport_profile() for a literature-calibrated axial shape
     instead of a single constant.
@@ -234,8 +236,9 @@ def wall_collision(Te:np.ndarray,
     Near-wall conductivity: an electron that crosses the sheath is absorbed
     and replaced by a secondary with a randomized velocity, which lets it
     step across B. Boeuf & Garrigues (J. Appl. Phys. 84, 3541, 1998); the
-    fifth term of the collision sum in Brick, Roberts & Jorns (AIAA
-    2025-0298, Eq. 5).
+    wall-scattering frequency nu_w of Goebel & Katz Eq. 7.4-10; the fifth
+    term of the collision sum in Brick, Roberts & Jorns (AIAA 2025-0298,
+    Eq. 5).
 
     Form and coefficients follow the WallSheath model of HallThruster.jl
     (src/physics/wall_losses.jl, freq_electron_wall!), which sets the rate
@@ -282,7 +285,8 @@ def electron_collision(nu_en:np.ndarray,
     the sum of the classical channels and the anomalous term.
 
     Five contributions, matching Brick, Roberts & Jorns (AIAA 2025-0298,
-    Eq. 5): nu_e = nu_ei + nu_en + nu_iz + nu_w + nu_an. nu_wall defaults
-    to 0 so callers that do not model the walls keep the old four-term
-    behaviour."""
+    Eq. 5): nu_e = nu_ei + nu_en + nu_iz + nu_w + nu_an. The same sum
+    without the ionization term is Goebel & Katz Eq. 7.4-13,
+    nu_m = nu_ei + nu_en + nu_w + nu_B. nu_wall defaults to 0 so callers
+    that do not model the walls keep the old four-term behaviour."""
     return nu_en + nu_iz + nu_ei + nu_anom + nu_wall

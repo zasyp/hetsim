@@ -130,8 +130,8 @@ def apply_ionization_weighted(neutrals: ParticleArray,
     ions of weight `ion_weight`, and loses N*ion_weight from its own weight.
     The expected transferred weight is w*nu*dt, exactly the physical rate, so
     the source is unbiased regardless of the weight ratio. Poisson rather than
-    Bernoulli because with a ratio of ~50 the per-particle expectation is no
-    longer small, and a coin flip would silently cap the rate at one event per
+    Bernoulli because with a weight ratio of tens (30 by default) the
+    per-particle expectation is no longer small, and a coin flip would silently cap the rate at one event per
     macroparticle per step.
 
     A neutral worn down below one ion weight cannot transfer again, so it is

@@ -94,9 +94,14 @@ def sheath_potential(Te: np.ndarray, gamma: np.ndarray, gas: WorkingSubstance) -
 
 def bohm_velocity(Te: np.ndarray, gas: WorkingSubstance) -> np.ndarray:
     """Bohm speed u_B = sqrt(e*Te / M) [m/s] at which ions enter the
-    sheath (Goebel & Katz Eq. 7.3-55, Te in eV). The directed ion speed
-    the pre-sheath accelerates the cold ions up to before they cross into
-    the wall sheath.
+    sheath (the Bohm criterion, Goebel & Katz Ch. 3.7; the ion current it
+    carries is their Eq. 3.7-51, and it is the v_o of Eq. 7.3-45). Te in
+    eV. The directed ion speed the pre-sheath accelerates the cold ions up
+    to before they cross into the wall sheath.
+
+    (An earlier docstring cited Eq. 7.3-55 here. That equation is the
+    plasma density at the channel exit estimated from the beam current,
+    n_e = eta_b I_d / (e A_c sqrt(2 e V_d / M)) -- a different thing.)
     """
     return np.sqrt(const.elementary_charge * np.asarray(Te, dtype=float) / gas.mass)
 
@@ -169,8 +174,11 @@ def wall_ion_energy_loss(Te: np.ndarray,
     sink.
 
     ion_energy_eV : presheath ion energy E_ion [eV]; defaults to the
-        space-charge-limited Bohm value 0.58*Te (Eq. 7.3-46). Pass
-        0.5*Te for the classic Bohm condition.
+        space-charge-limited value 0.58*Te that Hobbs & Wesson found
+        (Goebel & Katz Eq. 7.3-39 -- the Bohm criterion survives strong
+        emission to within ~16%). Pass 0.5*Te for the classic Bohm
+        condition. (Previously cited as Eq. 7.3-46, which is the wall heat
+        flux, not the ion energy.)
     """
     Te = np.asarray(Te, dtype=float)
     phi_s = np.asarray(phi_s, dtype=float)

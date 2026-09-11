@@ -60,9 +60,19 @@ def perp_thermal_conductivity(ne:np.ndarray,
 
     Because it inherits mu_perp = mu_0 / (1 + Omega^2), the conduction is
     quenched across the strong-field region exactly like the particle
-    mobility, so heat (like current) crosses B only where collisions or
-    anomalous transport allow it. coeff is the O(1) Braginskii-type number
-    (~2.5 for a Maxwellian; tune against data). Units work out to amps per
+    mobility, so heat crosses B only where collisions allow it. WHICH
+    collisions is the caller's choice: FluidElectronSolver passes a mobility
+    built WITHOUT the anomalous term (SolverSettings.anom_in_heat_flux), per
+    Brick, Roberts & Jorns, AIAA 2025-0298 Sec. IV -- including it inflates
+    kappa_perp several-fold and artificially lowers Te.
+
+    coeff is an O(1) number with two classical reference values: 5/2 from
+    simple kinetic theory (each diffusing particle carries its enthalpy
+    h = (5/2) k T, so kappa = (5/2) n k D with D = mu*Te), and 4.7 from
+    Braginskii's strongly magnetized limit, kappa_perp = 4.7 n Te /
+    (m_e Omega_e^2 tau_e) (Fitzpatrick, Plasma Physics, Eq. 4.103). The
+    solver runs an EFFECTIVE inter-layer value, calibrated against Te;
+    see SolverSettings.kappa_coeff. Units work out to amps per
     metre so that kappa_perp * grad(Te)[V/m] is W/m^2 and the layer
     machinery (layer_conductance) yields a thermal conductance in W/V.
     """

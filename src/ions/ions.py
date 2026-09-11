@@ -8,9 +8,12 @@
 # replaces PlasmaState.placeholder.
 #
 # What is deliberately NOT here:
-#   * no magnetic force. The Xe+ Larmor radius at 150 G and 20 km/s is ~20 cm,
-#     six times the channel. Over one cell the field bends the trajectory by
-#     ~0.2%, far below the statistical noise of a PIC push.
+#   * no magnetic force. The Xe+ Larmor radius r_L = M v / (e B) at 20 km/s is
+#     2.7 m at 100 G and 1.8 m at 150 G -- fifty to eighty times the channel
+#     radius. Over one 0.5 mm cell the field bends the trajectory by ~0.02-0.03%,
+#     far below the statistical noise of a PIC push. (An earlier version of
+#     this comment said ~20 cm and ~0.2%: those are the numbers for B = 0.15 T,
+#     i.e. 1500 G -- a gauss/millitesla slip. The conclusion only gets safer.)
 #   * no ion-ion or ion-neutral collisions. Charge exchange matters for plume
 #     divergence, not for the discharge; add it later as an MCC step.
 #   * no ionization. That lives in electron_liquid/ionization.py (apply_ionization),

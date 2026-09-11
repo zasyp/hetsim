@@ -3,7 +3,7 @@
 #   1. a single reference point (values from a HallThruster.jl-like exit
 #      condition) against known-good order-of-magnitude numbers;
 #   2. the shape of the Eqs. (3)-(4) anomalous-transport profile
-#      (Marks & Jorns, arXiv:2507.08113) against its own definition,
+#      (Marks, Eckels, Mora & Gorodetsky, arXiv:2507.08113) against its own definition,
 #      independent of any specific thruster's B(z).
 #
 # For the calibrated profile plotted against a *real* magnetic field

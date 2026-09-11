@@ -135,7 +135,7 @@ $\int(1/\mu r)\nabla\psi\cdot\nabla w\,dr\,dz = \int J_\varphi w\,dr\,dz$):
 - Аномальный перенос, бомовский (по умолчанию в решателе):
   `anomaly_collision` (`:173`): $\nu_{anom} = \alpha\,\omega_{ce}$,
   `α = 1/16` — классика Бома, либо профиль `α(z)`.
-- Аномальный перенос, калиброванный профиль Marks & Jorns
+- Аномальный перенос, калиброванный профиль Marks, Eckels, Mora & Gorodetsky
   (arXiv:2507.08113, Eq. 3–4):
   `anomalous_transport_profile` (`:93`):
   $$\alpha(\hat z) = \alpha_{anom}\bigl(1-\beta_{anom}\,
@@ -635,7 +635,7 @@ $$I_{iz} = \frac{e\cdot n_{events}\cdot W_i}{dt_{slow}}, \qquad
 - Hobbs G.D., Wesson J.A. *Heat flow through a Langmuir sheath in the
   presence of electron emission*, Plasma Physics 9 (1967) — предел
   сеточного потенциала по пространственному заряду (`PHI_SPACE_CHARGE`).
-- Marks T., Jorns B. *Uncertainty quantification of a multi-component Hall
+- Marks T.A., Eckels J.D., Mora G.E., Gorodetsky A.A. *Uncertainty quantification of a multi-component Hall
   thruster model at varying facility pressures*, arXiv:2507.08113 (2025) —
   калиброванный аномальный перенос (`anomalous_transport_profile`,
   `anomaly_axial_shift`), пресеты по двигателям.

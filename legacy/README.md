@@ -29,7 +29,7 @@
 | `collisions_check.py` | 1 — частоты столкновений, в двух опорных точках |
 | `mobility_check.py` | 2 — подвижность и диффузия там же |
 | `hall_parameter.py` | 1→2 на реальном поле СПД-70 |
-| `anomalous_transport.py` | аномальный перенос, калиброванная модель Marks & Jorns |
+| `anomalous_transport.py` | аномальный перенос, калиброванная модель Marks, Eckels, Mora & Gorodetsky |
 | `lambda_layers_check.py` | 3 — сведение сетки `(z, r)` к слоям вдоль линий поля |
 | `conductance_check.py` | 4a — поперечные проводимости слоёв `G_{j+1/2}` |
 | `potential_check.py` | 4 — термализованный потенциал `φ*(λ)` |

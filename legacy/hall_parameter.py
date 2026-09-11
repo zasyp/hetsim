@@ -2,7 +2,7 @@
 # SPT-70 channel + near-field plume -- the full electron_liquid pipeline
 # (collisions.py block 1 -> mobility.py block 2) evaluated on the actual
 # B(z) from the magnetic solve (magnetics/spt70_system.py), using the
-# calibrated anomalous-transport model of Marks & Jorns (arXiv:2507.08113,
+# calibrated anomalous-transport model of Marks, Eckels, Mora & Gorodetsky (arXiv:2507.08113,
 # Eqs. 3-4; SPT-100 preset -- closest literature-calibrated analog for
 # this thruster class, not a fit to this exact geometry).
 #

@@ -62,10 +62,15 @@ class SolverSettings:
     # Effective cross-field / inter-field-line thermal conduction number.
     # It sets how strongly heat spreads from the ohmically-heated
     # acceleration layers to the wall- and anode-touching layers that shed
-    # it; too small and an isolated hot layer runs away. ~35 lands the
-    # placeholder SPT-70 at a peak Te ~25 eV (~0.08 V_d, the usual Hall
-    # rule of thumb) — this is the main calibration knob and should be
-    # pinned against data / a kinetic run.
+    # it; too small and an isolated hot layer runs away. Classical values
+    # are 5/2 (kinetic theory) and 4.7 (Braginskii, magnetized limit); this
+    # is an EFFECTIVE inter-layer number and runs higher. 35 was first set
+    # to land the placeholder at Te ~25 eV (~0.08 V_d) with the anomalous
+    # term wrongly inside kappa_perp; with it taken out (anom_in_heat_flux),
+    # the same 35 gives ~30 eV on the placeholder and ~45 eV coupled, which
+    # matches the laser-measured "nearly twice" of Brick 2025. A 2.5..70
+    # scan moves thrust 21% but Te 242%: it is pinned by Te (and eta_v,
+    # which only 35 keeps inside Hofer's measured 0.89-0.97), not by thrust.
     kappa_coeff: float = 35.0
     # Whether the anomalous collision frequency enters the PERPENDICULAR
     # THERMAL conductivity as well as the mobility. Brick, Roberts & Jorns

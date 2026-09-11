@@ -889,4 +889,4 @@ def relax_collision(nu_new, nu_old, r=0.5):
   PSST 28 (2019) — обзор, приэлектродный горб потенциала.
 - Brick D., Roberts C., Jorns B. *Numerical Investigation of Electron Energy
   Transport in Hall Thrusters*, AIAA SciTech 2025-0298 — `ν_anom = c ν_ei`.
-- Marks T., Jorns B. arXiv:2507.08113 — калиброванный аномальный перенос.
+- Marks T.A., Eckels J.D., Mora G.E., Gorodetsky A.A. arXiv:2507.08113 — калиброванный аномальный перенос.

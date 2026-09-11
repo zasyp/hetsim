@@ -1,5 +1,5 @@
 # Anomalous electron transport along the SPT-70 channel + plume, using
-# the calibrated 4+2-parameter model of Marks & Jorns, "Uncertainty
+# the calibrated 4+2-parameter model of Marks, Eckels, Mora & Gorodetsky, "Uncertainty
 # quantification of a multi-component Hall thruster model at varying
 # facility pressures" (arXiv:2507.08113, 2025), Eqs. (3)-(4):
 #
