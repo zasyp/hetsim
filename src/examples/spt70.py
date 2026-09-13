@@ -83,12 +83,18 @@ def main(macro_steps: int = 3000, out_dir: str = "out",
 
     _write_setup(hybrid, out / "setup.txt", macro_steps, settle)
 
-    every = max(1, macro_steps // 15)
+    # A settled run is thousands of macro-steps and hours of wall clock; 15
+    # progress lines over that is not enough to tell "still igniting" from
+    # "hung", which is the one question you ask while it runs.
+    every = max(1, macro_steps // 40)
     hybrid.run(settle, verbose=True, every=every)
     hybrid.reset_beam()
     print(f"  --- beam window opens at t = {hybrid.time*1e6:.1f} us ---")
-    hybrid.run(macro_steps - settle, verbose=True, every=every)
+    average = FieldAverage()
+    hybrid.run(macro_steps - settle, verbose=True, every=every,
+               callback=average)
 
+    _write_state(hybrid, average, out / "state.npz")
     _write_maps(hybrid, out / "maps")
     _write_traces(hybrid, out / "traces.png")
     _write_profiles(hybrid, out / "profiles.png")
@@ -112,6 +118,7 @@ def _write_setup(hybrid, path: Path, macro_steps, settle):
     """
     thr, g, s = hybrid.thruster, hybrid.grid, hybrid.s
     e = s.electron
+    d = hybrid.state.diagnostics
     dr = (g.max_r - g.min_r) / (g.N_r - 1)
     dz = (g.max_z - g.min_z) / (g.N_z - 1)
     bad = check_conformal(np.linspace(0.0, DOMAIN_R, 121),
@@ -164,11 +171,18 @@ def _write_setup(hybrid, path: Path, macro_steps, settle):
         f"  N_lambda field-line layers  {e.n_layers}",
         f"  anomalous transport {e.anomaly_preset} preset, "
         f"p_B = {e.background_pressure_torr:g} Torr",
+        f"  transport barrier  z = {d['z_barrier']*1e3:.1f} mm, "
+        + (f"anchored on the mid-channel |B| peak at "
+           f"{d['z_field_peak']*1e3:.1f} mm"
+           if e.barrier_on_field_peak else "z_anom x channel length, literal"),
         f"  Te boundaries      anode {e.Te_anode} eV, cathode {e.Te_cathode} eV",
         f"  kappa_coeff        {e.kappa_coeff:g}   dimensionless number in"
         f" kappa_perp = coeff*e*n_e*Te*mu_perp;",
         f"                     classical values are 5/2 (kinetic theory) and"
         f" 4.7 (Braginskii, magnetized limit)",
+        f"  energy equation    conduction + convected enthalpy (5/2)Te*I_face",
+        f"  Boltzmann term     n_e filtered with {e.boltzmann_smooth} extra"
+        f" binomial passes before it enters phi",
         f"  Gummel loop        relax {e.relax:g}, tol {e.tol:g} eV, "
         f"max {e.max_iter} iter",
         "",
@@ -187,6 +201,93 @@ def _write_setup(hybrid, path: Path, macro_steps, settle):
 
 
 # --- maps -----------------------------------------------------------------
+
+class FieldAverage:
+    """Time-average of every field over the beam window.
+
+    A breathing discharge has no steady state, so the fields at the last
+    macro-step are one phase of a cycle, not the answer — n_e at the end of
+    a run can be three times what it is a quarter-cycle later. Anything
+    compared against a measurement has to be cycle-averaged, which means
+    accumulating on EVERY step (the cycle is ~30-100 us, the progress
+    interval is ~36 us: sampling on the progress interval would alias).
+    """
+
+    KEYS_2D = ("n_e", "n_n", "Te", "phi", "E_z", "E_r")
+    KEYS_LAYER = ("Te_layers", "phi_star_layers", "I_face", "G_face", "dI_iz")
+
+    def __init__(self):
+        self.n = 0
+        self.sums: dict[str, np.ndarray] = {}
+
+    def __call__(self, hybrid, rec):
+        st = hybrid.state
+        d = st.diagnostics
+        fields = {k: np.asarray(getattr(st, k), dtype=float)
+                  for k in self.KEYS_2D}
+        fields.update({k: np.asarray(d[k], dtype=float)
+                       for k in self.KEYS_LAYER})
+        fields["S_iz"] = ionization_source(st.Te, st.n_e, st.n_n, st.gas)
+        for k, v in fields.items():
+            if k in self.sums:
+                self.sums[k] += v
+            else:
+                self.sums[k] = v.copy()
+        self.n += 1
+
+    def mean(self) -> dict[str, np.ndarray]:
+        return {k: v / max(self.n, 1) for k, v in self.sums.items()}
+
+
+def _write_state(hybrid, average: FieldAverage, path: Path):
+    """Dump the fields to a .npz so the run can be interrogated afterwards.
+
+    The PNGs answer questions you knew to ask before the run. This answers
+    the ones you only think of when you see the result — above all "where
+    along the field-line coordinate does the discharge current get set",
+    which needs the per-layer conductance and the potential drop it carries,
+    neither of which survives into a picture.
+
+    Everything time-averaged over the beam window is prefixed avg_; the last
+    macro-step is kept alongside as snap_ so the two can be compared (if they
+    differ a lot, the run is still breathing, which is the point).
+    """
+    st, g = hybrid.state, hybrid.grid
+    geom, d = hybrid.electrons.geom, hybrid.state.diagnostics
+    out = {f"avg_{k}": v for k, v in average.mean().items()}
+    out.update({
+        "snap_n_e": st.n_e, "snap_n_n": st.n_n, "snap_Te": st.Te,
+        "snap_phi": st.phi, "snap_E_z": st.E_z, "snap_E_r": st.E_r,
+        "snap_I_face": d["I_face"], "snap_G_face": d["G_face"],
+        "snap_phi_star_layers": d["phi_star_layers"],
+        # static geometry and field
+        "z": g.z_nodes(), "r": g.r_nodes(), "dV": geom.dV,
+        "Br": st.Br, "Bz": st.Bz, "lam": st.lam,
+        "layer_idx": geom.idx, "layer_lambda": geom.layer_lambda,
+        "z_layer": geom.z_layer, "layer_dV": _layer_volume(geom),
+        "wall_area": geom.wall_area,
+        "z_barrier": d["z_barrier"], "z_field_peak": d["z_field_peak"],
+        "channel_length": hybrid.thruster.channel_length,
+        "r_min": hybrid.thruster.r_min, "r_max": hybrid.thruster.r_max,
+        "voltage": hybrid.thruster.voltage,
+        "n_avg_steps": average.n,
+    })
+    # where the ions actually land, accumulated over the beam window only
+    for key in ("inner_wall", "outer_wall", "front_face", "anode"):
+        h = np.asarray(hybrid.totals.get(key + "_zhist", 0.0), dtype=float)
+        h0 = np.asarray(hybrid.totals_at_reset.get(key + "_zhist", 0.0),
+                        dtype=float)
+        out["wallhist_" + key] = h - h0
+    np.savez_compressed(path, **out)
+    print(f"state dumped to {path} ({average.n} averaged macro-steps)")
+
+
+def _layer_volume(geom) -> np.ndarray:
+    """Volume of each lambda layer [m^3] — the same binning the solver uses
+    for its power integrals, kept so the dump can convert per-layer powers
+    back into densities."""
+    return geom.integrate_power(np.ones(geom.dV.shape))
+
 
 def _write_maps(hybrid, map_dir: Path):
     """Electron/field maps from field_maps, plus the ion-specific ones."""
@@ -219,11 +320,12 @@ def _write_traces(hybrid, path: Path):
     t = np.array([x["time"] for x in h]) * 1e6
     fig, ax = plt.subplots(1, 3, figsize=(15, 4), layout="constrained")
 
-    for key, label in [("I_iz", "ionization"), ("I_beam", "beam"),
-                       ("I_wall", "walls"), ("I_anode", "anode")]:
+    for key, label in [("I_iz", "ionization"), ("I_d", "discharge"),
+                       ("I_beam", "beam"), ("I_wall", "channel walls"),
+                       ("I_front", "front face"), ("I_anode", "anode (ions)")]:
         ax[0].plot(t, [x[key] for x in h], label=label, lw=1.2)
     ax[0].set_ylabel("current, A"); ax[0].set_title("currents")
-    ax[0].legend(fontsize=8)
+    ax[0].legend(fontsize=7, ncol=2)
 
     ax[1].plot(t, [x["n_ion_macro"] for x in h], label="ions")
     ax[1].plot(t, [x["n_neutral_macro"] for x in h], label="neutrals")
@@ -253,6 +355,11 @@ def _write_profiles(hybrid, path: Path):
     ax[0, 0].set_ylabel("density, m$^{-3}$"); ax[0, 0].legend(fontsize=8)
     ax[0, 1].plot(z, st.Te[:, jm], color="crimson")
     ax[0, 1].set_ylabel("Te, eV")
+    # where the field peaks — the measured Te maximum sits on it
+    i_B = int(np.argmax(np.hypot(st.Br, st.Bz)[:, jm]))
+    ax[0, 1].axvline(z[i_B], color="navy", ls=":", lw=1)
+    ax[0, 1].text(z[i_B], ax[0, 1].get_ylim()[1], " |B| max", color="navy",
+                  fontsize=7, va="top")
     ax[1, 0].plot(z, st.phi[:, jm])
     ax[1, 0].set_ylabel("phi, V")
     ax[1, 1].plot(z, v_z[:, jm] * 1e-3, color="darkgreen")

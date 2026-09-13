@@ -132,10 +132,22 @@ def apply_ion_boundaries(part: ParticleArray, thruster: Thruster, grid: Grid2D,
     alive = np.ones(n, dtype=bool)
     tally = {}
     pieces = []
+    z_edges = grid.z_nodes()
 
     def _resolve(hit, key, v_th=None, axis=None, sign=None):
-        """Book-keep one destination; recombine into gas unless v_th is None."""
+        """Book-keep one destination; recombine into gas unless v_th is None.
+
+        Surfaces also get an AXIAL HISTOGRAM of what landed on them, under
+        '<key>_zhist'. A scalar wall current says the model is losing ions;
+        only the profile says whether they are lost where they are born (poor
+        confinement everywhere) or where they are accelerated (the field is
+        pushing them into the wall), and those have opposite fixes. The caller
+        sums these the same way it sums the scalars — numpy arrays add.
+        """
         tally[key] = float(part.weight[hit].sum())
+        if key != "beam":
+            tally[key + "_zhist"] = np.histogram(
+                part.z[hit], bins=z_edges, weights=part.weight[hit])[0]
         if v_th is not None:
             pieces.append(_born_neutrals(part, hit, v_th, axis, sign))
         alive[hit] = False

@@ -28,7 +28,7 @@ class LayerGeometry:
         self.lam = lam
 
         z, r = grid.z_nodes(), grid.r_nodes()
-        self.dV = node_volume(grid)
+        self.dV = node_volume(grid, thruster)
 
         body = thruster_body_mask(grid, thruster)
         self.lam_a, self.lam_c = lambda_range(lam, z, r, thruster)

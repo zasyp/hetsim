@@ -40,7 +40,7 @@ from src.electron_liquid.lambda_layers import (
     lambda_range, build_layers, thruster_body_mask, layer_average,
 )
 from src.electron_liquid.layer_potential import (
-    node_weight, layer_conductance, layer_ionization_current,
+    node_weight, layer_conductance, layer_ionization_current, layer_currents,
 )
 from src.electron_liquid.solve_potential import (
     solve_potential, potential_on_grid, electric_field,
@@ -158,13 +158,19 @@ def main():
     z_face = 0.5 * (z_layer[:-1] + z_layer[1:])
 
     # --- diagnostics ---
-    # phi* is expected to fall from anode to cathode, EXCEPT for a small
-    # hump just downstream of the anode: ionization born in those first
-    # layers injects ion current that must be driven back upstream, which
-    # needs phi* slightly ABOVE the anode. That is the physical near-anode
-    # potential hump (Hara 2019 review, Fig. 12), not an assembly bug — so
-    # report its size instead of failing on it. A hump of more than a few
-    # percent of V_d, or non-monotonicity anywhere downstream of it, IS a bug.
+    # phi* must fall MONOTONICALLY from anode to cathode, with no hump.
+    # The electron current is largest at the anode and is shaved down
+    # downstream by the ion current born on the way (see solve_potential),
+    # so every face carries current in the same direction and every face
+    # drops voltage in the same direction. Any hump means the ion source is
+    # being injected with the wrong sign — which is exactly what this check
+    # used to report as a "physical near-anode hump" and wave through.
+    #
+    # The real near-anode potential hump (Hara 2019 review, Fig. 12) is a
+    # feature of the full phi, not of phi*: it comes from the Boltzmann term
+    # Te*ln(n_e/n_anode) in potential_on_grid, where n_e rising from the
+    # anode into the channel lifts phi a few volts above V_d. Look for it
+    # there, downstream of this check.
     dphi = np.diff(phi)
     hump = float(phi.max() - phi[0])
     k_peak = int(np.argmax(phi))
@@ -173,17 +179,35 @@ def main():
     drop_channel = np.abs(phi[0] - np.interp(L, z_layer, phi))
 
     print(f"phi*: anode {phi[0]:.1f} V -> cathode {phi[-1]:.1f} V, "
-          f"monotonic below the near-anode hump: "
-          f"{'OK' if monotonic_after else 'FAIL'}")
-    print(f"near-anode hump: +{hump:.1f} V "
-          f"({hump/thruster.voltage*100:.1f}% of V_d) peaking at "
-          f"z = {z_layer[k_peak]*1e3:.1f} mm")
+          f"monotonic: {'OK' if monotonic_after and hump < 1e-6 else 'FAIL'}")
+    print(f"overshoot above the anode: +{hump:.2f} V "
+          f"({hump/thruster.voltage*100:.2f}% of V_d) at "
+          f"z = {z_layer[k_peak]*1e3:.1f} mm  (should be zero)")
     print(f"largest single-face drop: {abs(dphi[k_drop]):.1f} V at "
           f"z = {z_face[k_drop]*1e3:.1f} mm  (exit at {L*1e3:.0f} mm)")
     print(f"drop anode->exit plane: {drop_channel:.0f} V of {thruster.voltage} V "
           f"({drop_channel/thruster.voltage*100:.0f}% inside the channel)")
     print(f"G_face minimum at z = {z_face[int(np.argmin(G_face))]*1e3:.1f} mm "
           f"(drop should peak near here)")
+
+    # --- the current the solve implies, which is the real check on it ---
+    # Electrons all end up at the anode, so the electron current must be
+    # LARGEST there and must shrink downstream by exactly the ion current
+    # born on the way: I(anode) - I(cathode) = sum(dI_iz). That identity is
+    # what the sign of the ion source in solve_potential decides, and
+    # getting it backwards is invisible in the potential plot alone —
+    # phi* still falls from V_d to 0, it just falls in the wrong place.
+    I_face = layer_currents(G_face, phi)
+    telescope = I_face[0] - I_face[-1]
+    # Only the INTERIOR rows are continuity equations; the two end layers
+    # are Dirichlet, so the ion current born in them is not in the balance.
+    born_interior = float(dI_iz[1:-1].sum())
+    ok = abs(telescope - born_interior) < 1e-6 * max(1.0, born_interior)
+    print(f"electron current: {I_face[0]:.2f} A at the anode face -> "
+          f"{I_face[-1]:.2f} A at the cathode face")
+    print(f"  falls downstream: {'OK' if I_face[0] > I_face[-1] else 'FAIL'}; "
+          f"I(anode) - I(cathode) = {telescope:.4f} A vs ion current born in "
+          f"the interior layers {born_interior:.4f} A ({'OK' if ok else 'FAIL'})")
 
     plot_potential(z_layer * 1e3, phi, z_face * 1e3, G_face,
                    L * 1e3, thruster.voltage)

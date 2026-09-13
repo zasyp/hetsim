@@ -12,3 +12,6 @@ __pycache__/
 /run_*/
 # archived run folders (runs_YYYY-MM-DD/), same reasoning
 /runs_*/
+
+# diagnostic runs (python -m src.examples.spt70 <steps> diag_<name>), same reasoning as run_*
+/diag_*/

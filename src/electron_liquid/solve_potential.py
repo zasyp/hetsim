@@ -3,18 +3,74 @@ import numpy as np
 from ..utils.utils import thomas_alg
 
 
-def solve_potential(G_face, dI_iz, V_anode, V_cathode):
+def solve_potential(G_face, dI_iz, V_anode, V_cathode, emf_face=None):
     """Solve current continuity on the lambda layers for phi* [V].
 
     Each interior layer balances the electron current across its two
     faces against the ion current born inside it (quasineutrality):
 
         G_{j-1/2} (phi*_{j-1} - phi*_j) + G_{j+1/2} (phi*_{j+1} - phi*_j)
-            = -dI_iz_j
+            = +dI_iz_j
 
     which is a tridiagonal system in phi*. The anode (layer 0) and
     cathode (layer N-1) are Dirichlet-pinned, so V_anode - V_cathode is
     the discharge voltage.
+
+    --- the sign of dI_iz, because it decides the whole profile ---
+
+    Write the electron conduction current across face j, counted POSITIVE
+    DOWNSTREAM (anode -> cathode), as
+
+        I_j = G_{j+1/2} (phi*_j - phi*_{j+1}) .
+
+    It is conventional current, so it points along E while the electrons
+    themselves drift upstream toward the anode, which is what the sign
+    convention has to get right. Every electron born in layer j must be
+    carried out of that layer toward the anode, on top of whatever the
+    cathode already sends through:
+
+        I_{j-1} = I_j + dI_iz_j ,
+
+    i.e. the electron current is LARGEST at the anode and is shaved down
+    layer by layer by the ion current born on the way out. That is the
+    textbook statement I_e(z) = I_d - I_i(z) with I_i growing downstream.
+    Substituting I into it gives the row above, with +dI_iz on the right.
+
+    Summing the interior rows telescopes to
+
+        I_anode_face - I_cathode_face = sum over interior layers of dI_iz ,
+
+    the global version of the same statement: anode collection = cathode
+    supply + total ionization. (Interior only — the two end layers are
+    Dirichlet, so their rows are boundary conditions, not continuity
+    equations, and what is born in them is not in the balance.)
+
+    A -dI_iz here reverses that. It forces the electron current to be
+    near zero at the anode and maximal at the barrier, so the solve puts
+    essentially the whole discharge voltage across the low-mobility
+    barrier and leaves the channel at a flat V_d. Ions born in the
+    channel then feel no axial field, drift at their birth thermal speed
+    for tens of microseconds and reach a wall before they reach the exit
+    -- which is exactly how a run ends up with more ion current on the
+    walls than in the beam.
+
+    --- the thermal-force term ---
+
+    emf_face (optional) is the second term of the cross-field Ohm's law,
+    E_{j+1/2} = G_{j+1/2} f_{j+1/2} (Te_j - Te_{j+1}) in amps, from
+    layer_potential.face_thermal_force. It rides on the same faces, so the
+    face current becomes
+
+        I_j = G_j (phi*_j - phi*_{j+1}) + E_j ,
+
+    and the continuity row I_{j-1} - I_j = dI_iz_j keeps the SAME matrix --
+    E is known (Te comes from the previous Gummel pass) and moves to the
+    right-hand side:
+
+        rhs_j = dI_iz_j - E_{j-1} + E_j .
+
+    Anyone reading the current afterwards must add E back (see
+    layer_currents), or the reported current is not the one that was solved.
     """
     N = len(dI_iz)
     lower = np.zeros(N)
@@ -25,7 +81,9 @@ def solve_potential(G_face, dI_iz, V_anode, V_cathode):
     lower[1:-1] = G_face[:-1]
     upper[1:-1] = G_face[1:]
     diag[1:-1] = -(G_face[:-1] + G_face[1:])
-    rhs[1:-1] = -dI_iz[1:-1]
+    rhs[1:-1] = dI_iz[1:-1]
+    if emf_face is not None:
+        rhs[1:-1] += emf_face[1:] - emf_face[:-1]
 
     diag[0] = 1.0
     rhs[0] = V_anode                                 # phi*_0   = V_a

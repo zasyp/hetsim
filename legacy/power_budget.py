@@ -1,7 +1,7 @@
 # Example: where the electron energy goes. Runs the full solver and shows
 # the converged power budget of the electron fluid — the ohmic heating
 # that comes in against the wall-sheath, ionization and radiation sinks
-# that (with conduction to the boundaries) take it back out — and the
+# that (with what the end layers carry out) take it back out — and the
 # axial profile of the wall heat flux, which peaks with Te in the
 # acceleration layer.
 #
@@ -43,10 +43,16 @@ def main(out="power_budget.png"):
     q_wall = sheath.wall_energy_loss(Te, 0.5 * state.n_e, phi_s)  # W/m^2
 
     labels = ["ohmic in", "wall", "ionization", "radiation",
-              "conduction to\nboundaries"]
+              "carried out at\nanode + cathode"]
     ohmic = d["P_ohmic"]
     sinks = [d["W_wall"], d["W_ion"], d["W_rad"]]
-    to_bnd = ohmic - sum(sinks)          # remainder balanced by conduction
+    # Remainder: what leaves through the two Dirichlet end layers. Both
+    # transport channels contribute — cross-field conduction down the Te
+    # gradient, and the (5/2)Te the electron flow convects with it, which at
+    # the anode end is the real physical sink: every electron the anode
+    # collects takes its enthalpy with it. Calling this "conduction" dates
+    # from before the energy equation had a convective term at all.
+    to_bnd = ohmic - sum(sinks)
     values = [ohmic, d["W_wall"], d["W_ion"], d["W_rad"], to_bnd]
 
     print("electron power budget [W]:")

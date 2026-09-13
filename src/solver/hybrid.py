@@ -116,7 +116,7 @@ class HybridSolver:
         self.q_over_m = cst.elementary_charge / thruster.mass
         self.v_th_anode = gas.thermal_speed(thruster.temperature_anode)
         self.v_th_wall = gas.thermal_speed(self.s.T_wall)
-        self.dV = node_volume(grid)
+        self.dV = node_volume(grid, thruster)
 
         self.neutrals = seed_uniform(grid, thruster, self.s.seed_n_n,
                                      self.s.weight, rng=self.rng)
@@ -136,6 +136,7 @@ class HybridSolver:
 
         self.history: list[dict] = []
         self.totals: dict[str, float] = {}
+        self.totals_at_reset: dict[str, float] = {}
         # beam moments accumulate from t=0; call reset_beam() after the
         # startup transient so thrust is measured on the settled discharge
         self.beam = BeamTally(thruster.mass)
@@ -214,17 +215,32 @@ class HybridSolver:
         self.time += self.dt_slow
 
         e = cst.elementary_charge
+        # currents [A]: weight is real particles, so weight*e/dt is amperes.
+        # The channel walls and the front face are reported apart. They are
+        # different failures: ions on the channel walls are the erosion and
+        # efficiency loss the model is supposed to predict, while ions on
+        # the front face are plume ions that turned around and came back,
+        # i.e. a divergence problem. Adding them into one "I_wall" hid which
+        # of the two was large.
+        I_wall = e * (tally.get("inner_wall", 0.0)
+                      + tally.get("outer_wall", 0.0)) / self.dt_slow
+        I_front = e * tally.get("front_face", 0.0) / self.dt_slow
+        I_anode_ion = e * tally.get("anode", 0.0) / self.dt_slow
+        # Discharge current: what the supply pushes through the anode, ions
+        # landing on it plus the electron back-current the fluid solve now
+        # reports (see solve_potential on why that number used to be junk).
+        I_anode_electron = float(self.state.diagnostics["I_anode_electron"])
         rec = dict(
             time=self.time,
             n_ion_macro=len(self.ions),
             n_neutral_macro=len(self.neutrals),
-            # currents [A]: weight is real particles, so weight*e/dt is amperes
             I_beam=e * tally.get("beam", 0.0) / self.dt_slow,
-            I_anode=e * tally.get("anode", 0.0) / self.dt_slow,
-            I_wall=e * (tally.get("inner_wall", 0.0)
-                        + tally.get("outer_wall", 0.0)
-                        + tally.get("front_face", 0.0)) / self.dt_slow,
+            I_anode=I_anode_ion,
+            I_wall=I_wall,
+            I_front=I_front,
             I_iz=e * n_events * self.ion_weight / self.dt_slow,
+            I_e_anode=I_anode_electron,
+            I_d=I_anode_electron + I_anode_ion,
             Te_peak=float(self.state.diagnostics["Te_peak"]),
             n_e_peak=float(self.state.n_e.max()),
             n_n_anode=float(self.state.n_n[0].mean()),
@@ -234,13 +250,20 @@ class HybridSolver:
         return rec
 
     def run(self, macro_steps: int, verbose: bool = False,
-            every: int = 20) -> list[dict]:
+            every: int = 20, callback=None) -> list[dict]:
+        """Advance the coupled system. callback(self, rec), if given, runs
+        after every macro-step — that is the hook a time-average has to use,
+        because in a breathing discharge every instantaneous field is a
+        snapshot of one phase of the cycle and means nothing on its own."""
         for i in range(macro_steps):
             rec = self.macro_step()
+            if callback is not None:
+                callback(self, rec)
             if verbose and (i % every == 0 or i == macro_steps - 1):
                 print(f"  t = {rec['time']*1e6:7.2f} us   "
                       f"ions {rec['n_ion_macro']:7d}  neut {rec['n_neutral_macro']:7d}   "
-                      f"I_iz {rec['I_iz']:5.2f} A  I_beam {rec['I_beam']:5.2f} A   "
+                      f"I_iz {rec['I_iz']:5.2f}  I_beam {rec['I_beam']:5.2f}  "
+                      f"I_wall {rec['I_wall']:5.2f}  I_d {rec['I_d']:5.2f} A   "
                       f"Te {rec['Te_peak']:5.2f} eV   ({rec['iterations']} it)",
                       flush=True)
         return self.history
@@ -251,6 +274,10 @@ class HybridSolver:
         the seed, not the thruster."""
         self.beam = BeamTally(self.thruster.mass)
         self.beam_t0 = self.time
+        # surface tallies are cumulative from t=0; remember where the window
+        # starts so the wall-loss profile can be differenced onto it too
+        self.totals_at_reset = {k: (v.copy() if hasattr(v, "copy") else v)
+                                for k, v in self.totals.items()}
 
     def performance(self) -> dict:
         """Thrust, Isp, exit velocity and divergence over the beam window."""
